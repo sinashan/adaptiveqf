@@ -6,8 +6,8 @@ SPLTARGETS=test_splinter_ops test_splinter_inserts test_splinter_inserts_2 test_
 ifndef D
 	DEBUG=
 	OPT=-O3 -DNDEBUG
-	SPLINTERPATH=external/splinterdb/build/release/lib
-	#SPLINTERPATH=external/splinterdb/btree
+	SPLINTERPATH=../splinterdb/build/release/lib
+	#SPLINTERPATH=../splinterdb/btree
 else
 	DEBUG=-g
 	OPT=-O0

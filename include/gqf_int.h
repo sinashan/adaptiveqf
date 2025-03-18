@@ -108,6 +108,7 @@ extern "C" {
 		qfruntime *runtimedata;
 		qfmetadata *metadata;
 		qfblock *blocks;
+		uint8_t *fp_counts;  // Array to track false positives per bucket
 	} quotient_filter;
 
 	typedef quotient_filter QF;
