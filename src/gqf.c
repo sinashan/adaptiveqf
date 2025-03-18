@@ -1487,7 +1487,7 @@ int qf_query_using_ll_table(const QF *qf, uint64_t key, uint64_t *ret_hash, uint
 			int ext_len, count_len;
 			get_slot_info(qf, current_index, &ext, &ext_len, &count, &count_len);
 			if ((((*ret_hash) >> (qf->metadata->quotient_bits + qf->metadata->bits_per_slot)) & BITMASK(qf->metadata->bits_per_slot * ext_len)) == ext) { // if extensions match, return the count
-				qf->fp_counts[hash_bucket_index]++; // Keep track of false positives per slot
+				qf->blocks->fp_counts[hash_bucket_index]++; // Keep track of false positives per slot
 				return minirun_rank;
 			}
 			if (is_runend(qf, current_index++)) break; // if extensions don't match, stop if end of run, skip to next item otherwise
@@ -1772,8 +1772,8 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 		exit(EXIT_FAILURE);
 	}
 
-	qf->fp_counts = (uint32_t *)calloc(qf->metadata->nslots, sizeof(uint32_t));
-	if (qf->fp_counts == NULL) {
+	qf->blocks->fp_counts = (uint32_t *)calloc(qf->metadata->nslots, sizeof(uint32_t));
+	if (qf->blocks->fp_counts == NULL) {
 		perror("Couldn't allocate memory for false positive counters.");
 		exit(EXIT_FAILURE);
 	}

@@ -33,6 +33,7 @@ extern "C" {
 		uint64_t occupieds[QF_METADATA_WORDS_PER_BLOCK];
 		uint64_t runends[QF_METADATA_WORDS_PER_BLOCK];
 		uint64_t extensions[QF_METADATA_WORDS_PER_BLOCK];
+		uint8_t *fp_counts;  // Array to track false positives per bucket
 
 #if QF_BITS_PER_SLOT == 8
 		uint8_t  slots[QF_SLOTS_PER_BLOCK];
@@ -108,7 +109,6 @@ extern "C" {
 		qfruntime *runtimedata;
 		qfmetadata *metadata;
 		qfblock *blocks;
-		uint8_t *fp_counts;  // Array to track false positives per bucket
 	} quotient_filter;
 
 	typedef quotient_filter QF;
