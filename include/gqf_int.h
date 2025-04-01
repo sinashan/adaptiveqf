@@ -10,6 +10,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define MAX_KEY_SIZE 8  // Size of uint64_t
+#define MAX_VAL_SIZE 8  // Size of uint64_t 
+
+// Add the BITMASK macro definition here
+#define MAX_VALUE(nbits) ((1ULL << (nbits)) - 1)
+#define BITMASK(nbits) ((nbits) == 64 ? 0xffffffffffffffff : MAX_VALUE(nbits))
 
 #define MAGIC_NUMBER 1018874902021329732
 

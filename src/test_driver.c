@@ -490,7 +490,7 @@ test_results_t run_micro_test(size_t qbits, size_t rbits, uint64_t *insert_set, 
 
 		printf("False positives:      %lu\n", fp_count);
 		printf("False positive rate:  %f%%\n", 100. * fp_count / query_set_len);
-
+ 
 		printf("Dummy: %lu\n", dummy);
 	}
 	results.query_throughput = (double)i * 1000000 / (end_time - start_time);

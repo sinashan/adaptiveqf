@@ -35,7 +35,7 @@ int main(int argc, char **argv)
 	size_t qbits = atoi(argv[1]);
 	size_t rbits = atoi(argv[2]);
 
-	size_t num_inserts = (1ull << qbits) * 0.9f;//strtoull(argv[3], NULL, 10);
+	size_t num_inserts = (1ull << qbits) * 0.9f; //strtoull(argv[3], NULL, 10);
 	size_t num_queries = strtoull(argv[3], NULL, 10);
 	size_t adv_freq = strtoull(argv[4], NULL, 10);
 	size_t cache_size = 512;

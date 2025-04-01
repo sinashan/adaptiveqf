@@ -1456,8 +1456,9 @@ int qf_insert_using_ll_table(QF *qf, uint64_t key, uint64_t count, qf_insert_res
 int qf_query_using_ll_table(const QF *qf, uint64_t key, uint64_t *ret_hash, uint8_t flags) {
 	// Convert key to hash
 	if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
-		if (qf->metadata->hash_mode == QF_HASH_DEFAULT)
+		if (qf->metadata->hash_mode == QF_HASH_DEFAULT){
 			*ret_hash = MurmurHash64A(((void *)&key), sizeof(key), qf->metadata->seed);
+		}
 		else if (qf->metadata->hash_mode == QF_HASH_INVERTIBLE)
 			*ret_hash = hash_64(key, -1ULL);
 		else
@@ -1469,16 +1470,16 @@ int qf_query_using_ll_table(const QF *qf, uint64_t key, uint64_t *ret_hash, uint
 	//uint64_t hash = (key << qf->metadata->value_bits) | (value & BITMASK(qf->metadata->value_bits));
 	uint64_t hash_remainder   = *ret_hash & BITMASK(qf->metadata->bits_per_slot);
 	uint64_t hash_bucket_index = (*ret_hash >> qf->metadata->bits_per_slot) & BITMASK(qf->metadata->quotient_bits);
-	
+
 	// If no one wants this slot, we can already say for certain the item is not in the filter
 	if (!is_occupied(qf, hash_bucket_index))
-		return -1;
-
+	return -1;
+	
 	// Otherwise, find the start of the run (all the items that want that slot) and parse for the remainder we're looking for
 	uint64_t runstart_index = hash_bucket_index == 0 ? 0 : run_end(qf, hash_bucket_index - 1) + 1;
 	if (runstart_index < hash_bucket_index)
-		runstart_index = hash_bucket_index;
-
+	runstart_index = hash_bucket_index;
+	
 	uint64_t current_index = runstart_index;
 	int minirun_rank = 0;
 	do {
@@ -1499,7 +1500,7 @@ int qf_query_using_ll_table(const QF *qf, uint64_t key, uint64_t *ret_hash, uint
 			while (is_extension_or_counter(qf, current_index)) current_index++;
 		}
 	} while (current_index < qf->metadata->xnslots); // stop if reached the end of all items (should never actually reach this point because should stop at the runend)
-
+	
 	return -1;
 }
 
@@ -1728,6 +1729,12 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 	// memset(buffer, 0, total_num_bytes);
 	qf->metadata = (qfmetadata *)(buffer);
 	qf->blocks = (qfblock *)(qf->metadata + 1);
+	qf->blocks->fp_counts = (uint8_t *)calloc(qf->metadata->nslots, sizeof(uint8_t));
+	if (qf->blocks->fp_counts == NULL) {
+		perror("Couldn't allocate memory for false positive counters.");
+		exit(EXIT_FAILURE);
+	}
+	
 
 	qf->metadata->magic_endian_number = MAGIC_NUMBER;
 	qf->metadata->reserved = 0;
@@ -1745,6 +1752,7 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 		qbits >>= 1;
 		qf->metadata->quotient_bits++;
 	}
+
 	qf->metadata->quotient_remainder_bits = qf->metadata->quotient_bits + qf->metadata->bits_per_slot;
 
 	qf->metadata->range = qf->metadata->nslots;
@@ -1772,11 +1780,6 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 		exit(EXIT_FAILURE);
 	}
 
-	qf->blocks->fp_counts = (uint32_t *)calloc(qf->metadata->nslots, sizeof(uint32_t));
-	if (qf->blocks->fp_counts == NULL) {
-		perror("Couldn't allocate memory for false positive counters.");
-		exit(EXIT_FAILURE);
-	}
 	
 #ifdef LOG_WAIT_TIME
 	qf->runtimedata->wait_times = (wait_time_data*
@@ -2616,6 +2619,19 @@ int qf_resize_malloc(QF *qf, uint64_t nslots) {
 	QF new_qf;
 	if (!qf_malloc(&new_qf, nslots, qf->metadata->key_bits, qf->metadata->value_bits, qf->metadata->hash_mode, qf->metadata->seed)) return 0;
 	if (qf->runtimedata->auto_resize) qf_set_auto_resize(&new_qf, true);
+
+    // Allocate a new fp_counts array for the resized filter
+    new_qf.blocks->fp_counts = (uint8_t *)calloc(new_qf.metadata->nslots, sizeof(uint8_t));
+    if (new_qf.blocks->fp_counts == NULL) {
+        perror("Couldn't allocate memory for false positive counters during resize.");
+        qf_free(&new_qf);
+        return 0;
+    }
+
+    // Copy the existing fp_counts to the new array
+    // Note: We only copy up to the size of the original filter
+    memcpy(new_qf.blocks->fp_counts, qf->blocks->fp_counts, qf->metadata->nslots * sizeof(uint8_t));
+
 
 	uint64_t current_run = 0;
 	uint64_t current_index = 0;
