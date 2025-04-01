@@ -5,7 +5,7 @@ SPLTARGETS=test_splinter_ops test_splinter_inserts test_splinter_inserts_2 test_
 
 ifndef D
 	DEBUG=
-	OPT=-O3 -DNDEBUG
+	OPT= -DNDEBUG
 	SPLINTERPATH=../splinterdb/build/release/lib
 	#SPLINTERPATH=../splinterdb/btree
 else
@@ -34,7 +34,7 @@ CC = gcc -std=gnu11
 CXX = g++ -std=c++11
 LD= gcc -std=gnu11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -m64 -I. -Iinclude -Iexternal/splinterdb/include -DSPLINTERDB_PLATFORM_DIR=platform_linux -DSKIP_BOOL_DEF -D_GNU_SOURCE
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -ggdb -m64 -I. -Iinclude -Iexternal/splinterdb/include -DSPLINTERDB_PLATFORM_DIR=platform_linux -DSKIP_BOOL_DEF -D_GNU_SOURCE -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-implicit-function-declaration
 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm -L$(SPLINTERPATH) -lsplinterdb -Wl,-rpath=$(SPLINTERPATH)
 #LDFLAGS += -L/usr/lib/ -lstxxl
