@@ -11,9 +11,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    int qbits = atoi(argv[1]);
-    int rbits = atoi(argv[2]);
-    int num_ops = atoi(argv[3]);
+    uint64_t qbits = atoll(argv[1]);
+    uint64_t rbits = atoll(argv[2]);
+    uint64_t num_ops = atoll(argv[3]);
     int verbose = 0;
 
     if (argc > 4 && strcmp(argv[4], "--verbose") == 0) {
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     gettimeofday(&tv, NULL);
     start_time = tv.tv_sec * 1000000 + tv.tv_usec;
 
-    printf("Inserting %d keys...\n", num_ops);
+    printf("Inserting %ld keys...\n", num_ops);
     for (int i = 0; i < num_ops; i++) {
         if (i % 2 == 0) {
             keys[i] = 1000000 + i;
@@ -98,9 +98,12 @@ int main(int argc, char *argv[]) {
         int result = qfdb_query(qfdb, keys[i]);
         if (result > 0) {
             exact_hits++;
-        }
+        } else {
+            printf("Mssing key in filter");
 
-        if (verbose && (i < 5 || i % 1000 == 0)) {
+    }
+
+        if (verbose) {
             printf("Queried exact key %d: key=%lu, found=%s\n",
                    i, keys[i], result > 0 ? "YES" : "NO");
         }
@@ -136,7 +139,7 @@ int main(int argc, char *argv[]) {
             random_hits++;
         }
 
-        if (verbose && (i < 5 || i % 1000 == 0)) {
+        if (verbose) {
             printf("Queried random key %d: key=%lu, found=%s\n",
                    i, random_key, result > 0 ? "YES" : "NO");
         }
