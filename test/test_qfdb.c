@@ -159,15 +159,17 @@ int main(int argc, char *argv[]) {
            random_hits, random_queries, (double)random_hits / random_queries * 100);
 
     // Get statistics from QFDB
-    uint64_t total_queries, verified_queries, fp_rehashes;
+    uint64_t total_queries, verified_queries, fp_rehashes, adaptations_performed;
     double fp_rate;
-    qfdb_get_stats(qfdb, &total_queries, &verified_queries, &fp_rehashes, &fp_rate);
+    qfdb_get_stats(qfdb, &total_queries, &verified_queries, &fp_rehashes, &adaptations_performed, &fp_rate);
 
     printf("\nQFDB Internal Statistics:\n");
     printf("Total queries:          %lu\n", total_queries);
     printf("Verified queries:       %lu\n", verified_queries);
     printf("False positive rehashes: %lu\n", fp_rehashes);
+    printf("Adaptations performed: %lu\n", adaptations_performed);
     printf("False positive rate:     %.6f\n", fp_rate);
+    
 
     // Memory usage statistics (estimate)
     size_t qf_size = (1ULL << qbits) * ((rbits/8) + 1);

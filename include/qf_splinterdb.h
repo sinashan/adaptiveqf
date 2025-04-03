@@ -13,6 +13,7 @@ typedef struct {
     uint64_t fp_retrievals;       // Counter for external retrievals
     uint64_t total_queries;       // Total number of queries
     uint64_t verified_queries;    // Number of queries that required verification
+    uint64_t adaptations_performed // Total adaptation performed --> FALSE POSITIVES
 } QFDB;
 
 // Initialize the combined QF+SplinterDB structure
@@ -35,7 +36,7 @@ int qfdb_resize(QFDB *qfdb, uint64_t new_qbits);
 
 // Get statistics about the data structure
 void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries, 
-                    uint64_t *fp_rehashes, double *false_positive_rate);
+                    uint64_t *fp_rehashes, uint64_t *adaptations_performed, double *false_positive_rate);
 
 // Rehash items in a high false positive bucket
 int qfdb_rehash_bucket(QFDB *qfdb, uint64_t bucket_idx);

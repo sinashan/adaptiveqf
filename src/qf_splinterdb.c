@@ -139,6 +139,7 @@ QFDB* qfdb_init(uint64_t qbits, uint64_t rbits, const char* db_path) {
     qfdb->fp_retrievals = 0;
     qfdb->total_queries = 0;
     qfdb->verified_queries = 0;
+    qfdb->adaptations_performed = 0;
 
     return qfdb;
 }
@@ -379,6 +380,32 @@ int qfdb_query(QFDB *qfdb, uint64_t key) {
     } else {
         DEBUG_PRINT("False positive eliminated\n");
         qfdb->fp_rehashes++;
+
+        // ** ADAPTATION **
+        DEBUG_PRINT("Attempting adaptation");
+
+        int adapt_ret = qf_adapt_using_ll_table(qfdb->qf,
+                                                stored_key, // key that should've been present
+                                                key, // key that caused fp
+                                                (uint64_t) minirun_rank, // rank of fp item
+                                                0); // flag (0=key is not prehashed)
+
+        // >0 success
+        if (adapt_ret>0){
+            qfdb->adaptations_performed++;
+            DEBUG_PRINT("Adaptation successful (return code: %d)\n", adapt_ret);
+        }else{
+            /**
+             * why? 
+             * 
+             * currently <0 means no action
+             */
+            DEBUG_PRINT("Adaptation failed (return code: %d)\n", adapt_ret);
+        }
+
+
+
+
         return 0; // Not found (false positive)
     }
 }
@@ -413,12 +440,13 @@ int qfdb_resize(QFDB *qfdb, uint64_t new_qbits) {
     return qfdb->qf->runtimedata->container_resize(qfdb->qf, 1ULL << new_qbits);
 }
 
-void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries,
-                   uint64_t *fp_rehashes, double *false_positive_rate) {
+void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries, 
+                   uint64_t *fp_rehashes, uint64_t *adaptations_performed, double *false_positive_rate) {
     if (total_queries) *total_queries = qfdb->total_queries;
     if (verified_queries) *verified_queries = qfdb->verified_queries;
     if (fp_rehashes) *fp_rehashes = qfdb->fp_rehashes;
-
+    if (adaptations_performed) *adaptations_performed = qfdb->adaptations_performed;
+    
     if (false_positive_rate) {
         if (qfdb->verified_queries > 0) {
             *false_positive_rate = (double)qfdb->fp_rehashes / qfdb->verified_queries;
