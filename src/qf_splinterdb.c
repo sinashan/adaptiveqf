@@ -229,7 +229,11 @@ int qfdb_insert(QFDB *qfdb, uint64_t key, uint64_t count) {
             DEBUG_PRINT("SplinterDB insert successful\n");
         }
     } else {
-        DEBUG_PRINT("QF insert failed\n");
+        DEBUG_PRINT("QF insert failed (return code %d)\n", ret);
+        // if -1 -> QF_NO_SPACE
+        if (ret==QF_NO_SPACE){
+            qfdb->space_errors++;
+        }
     }
 
     return ret;
@@ -395,17 +399,13 @@ int qfdb_query(QFDB *qfdb, uint64_t key) {
             qfdb->adaptations_performed++;
             DEBUG_PRINT("Adaptation successful (return code: %d)\n", adapt_ret);
         }else{
-            /**
-             * why? 
-             * 
-             * currently <0 means no action
-             */
+            // = 0 means adaptation was not required.
+            // = -1 (QF_NO_SPACE), -2 QF_COULDNT_LOCK, -3 QF_DOESNT_EXIST
             DEBUG_PRINT("Adaptation failed (return code: %d)\n", adapt_ret);
+            if (adapt_ret==QF_NO_SPACE){
+                qfdb->space_errors++;
+            }
         }
-
-
-
-
         return 0; // Not found (false positive)
     }
 }
@@ -441,11 +441,12 @@ int qfdb_resize(QFDB *qfdb, uint64_t new_qbits) {
 }
 
 void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries, 
-                   uint64_t *fp_rehashes, uint64_t *adaptations_performed, double *false_positive_rate) {
+                   uint64_t *fp_rehashes, uint64_t *adaptations_performed, uint64_t *space_errors, double *false_positive_rate) {
     if (total_queries) *total_queries = qfdb->total_queries;
     if (verified_queries) *verified_queries = qfdb->verified_queries;
     if (fp_rehashes) *fp_rehashes = qfdb->fp_rehashes;
     if (adaptations_performed) *adaptations_performed = qfdb->adaptations_performed;
+    if (space_errors) *space_errors = qfdb->space_errors;
     
     if (false_positive_rate) {
         if (qfdb->verified_queries > 0) {
