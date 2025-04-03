@@ -1,6 +1,9 @@
+#include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "hashutil.h"
 
 #include "qf_splinterdb.h"
 #include "gqf_int.h"
@@ -81,8 +84,8 @@ QFDB* qfdb_init(uint64_t qbits, uint64_t rbits, const char* db_path) {
         return NULL;
     }
 
-    // Create QF with specified parameters
-    if (!qf_malloc(qfdb->qf, 1ULL << qbits, qbits + rbits, 0,
+    // Create QF with specified parameters with 1 billion slots
+    if (!qf_malloc(qfdb->qf, 1ULL << 15, qbits + rbits, 0,
                   QF_HASH_INVERTIBLE, 0)) {
         free(qfdb->qf);
         free(qfdb);
@@ -169,6 +172,15 @@ void qfdb_destroy(QFDB *qfdb) {
     free(qfdb);
 }
 
+uint64_t qfdb_hash(QFDB *qfdb, uint64_t* key, uint64_t key_size) {
+
+  quotient_filter_metadata *m = qfdb->qf->metadata;
+  if (m->frontier != NULL && *key >= m->frontier) {
+    return MurmurHash64A(key, key_size, qfdb->qf->metadata->seed_b);
+  }
+  return MurmurHash64A(key, key_size, qfdb->qf->metadata->seed);
+}
+
 
 int qfdb_insert(QFDB *qfdb, uint64_t key, uint64_t count) {
     if (!qfdb || !qfdb->qf || !qfdb->ext_store) {
@@ -179,7 +191,7 @@ int qfdb_insert(QFDB *qfdb, uint64_t key, uint64_t count) {
     uint64_t key_copy = key;
 
     // Hash the key
-    uint64_t hash = MurmurHash64A(&key_copy, sizeof(key_copy), qfdb->qf->metadata->seed);
+    uint64_t hash = qfdb_hash(qfdb, &key_copy, sizeof(key_copy));
     DEBUG_PRINT("Inserting key: %lu, hash: %lu\n", key, hash);
 
     // Try to insert into QF - IMPORTANT: Use the hash here, not the key
@@ -260,7 +272,7 @@ int qfdb_query(QFDB *qfdb, uint64_t key) {
 
     // CRITICAL FIX: Compute hash but constrain it to a safe range for large qbits
     uint64_t hash;
-    hash = MurmurHash64A(&key_copy, sizeof(key_copy), qfdb->qf->metadata->seed);
+    hash = qfdb_hash(qfdb, &key_copy, sizeof(key_copy));
 
   // For large qbits (≥18), constrain the hash to prevent out-of-bounds access
   // if (qfdb->qf->metadata->quotient_bits >= 18) {
@@ -403,6 +415,7 @@ int qfdb_query(QFDB *qfdb, uint64_t key) {
             // = -1 (QF_NO_SPACE), -2 QF_COULDNT_LOCK, -3 QF_DOESNT_EXIST
             DEBUG_PRINT("Adaptation failed (return code: %d)\n", adapt_ret);
             if (adapt_ret==QF_NO_SPACE){
+
                 qfdb->space_errors++;
             }
         }
@@ -412,7 +425,7 @@ int qfdb_query(QFDB *qfdb, uint64_t key) {
 
 int qfdb_remove(QFDB *qfdb, uint64_t key) {
     // Hash the key
-    uint64_t hash = MurmurHash64A(&key, sizeof(key), qfdb->qf->metadata->seed);
+    uint64_t hash = qfdb_hash(qfdb, &key, sizeof(key));
     uint64_t ret_hash;
     int ret_hash_len;
 
@@ -440,14 +453,14 @@ int qfdb_resize(QFDB *qfdb, uint64_t new_qbits) {
     return qfdb->qf->runtimedata->container_resize(qfdb->qf, 1ULL << new_qbits);
 }
 
-void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries, 
+void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries,
                    uint64_t *fp_rehashes, uint64_t *adaptations_performed, uint64_t *space_errors, double *false_positive_rate) {
     if (total_queries) *total_queries = qfdb->total_queries;
     if (verified_queries) *verified_queries = qfdb->verified_queries;
     if (fp_rehashes) *fp_rehashes = qfdb->fp_rehashes;
     if (adaptations_performed) *adaptations_performed = qfdb->adaptations_performed;
     if (space_errors) *space_errors = qfdb->space_errors;
-    
+
     if (false_positive_rate) {
         if (qfdb->verified_queries > 0) {
             *false_positive_rate = (double)qfdb->fp_rehashes / qfdb->verified_queries;

@@ -1,4 +1,4 @@
-CTARGETS=test_micro test_throughput test_split_throughput test_adversarial test_splinter_lltable_throughput test_splinter_parallel test_parallel test_qfdb# test_fill_varied_throughput test_near_full test_deletions test_merge test_hash_accesses test_bulk test_whitelist test_resize test_micro_throughput test_micro_write test_micro_read test_lltable_throughput
+CTARGETS=test_micro test_throughput test_split_throughput test_adversarial test_splinter_lltable_throughput test_splinter_parallel test_parallel test_qfdb # test_fill_varied_throughput test_near_full test_deletions test_merge test_hash_accesses test_bulk test_whitelist test_resize test_micro_throughput test_micro_write test_micro_read test_lltable_throughput
 CXXTARGETS=test_ext_throughput test_ext_inc_throughput test_zipf_throughput test_ext_churn taf
 SPLTARGETS=test_splinter_ops test_splinter_inserts test_splinter_inserts_2 test_splinter_throughput test_splinter_zipfian_histogram test_splinter_adversarial
 # test_progress
@@ -34,7 +34,7 @@ CC = gcc -std=gnu11
 CXX = g++ -std=c++11
 LD= gcc -std=gnu11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -ggdb -m64 -I. -Iinclude -Iexternal/splinterdb/include -DSPLINTERDB_PLATFORM_DIR=platform_linux -DSKIP_BOOL_DEF -D_GNU_SOURCE -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-implicit-function-declaration
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -L$(SPLINTERPATH) -lsplinterdb -ggdb -m64 -I. -Iinclude -Iexternal/splinterdb/include -DSPLINTERDB_PLATFORM_DIR=platform_linux -DSKIP_BOOL_DEF -D_GNU_SOURCE -Wno-int-conversion -Wno-incompatible-pointer-types -Wno-implicit-function-declaration
 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm -L$(SPLINTERPATH) -lsplinterdb -Wl,-rpath=$(SPLINTERPATH)
 #LDFLAGS += -L/usr/lib/ -lstxxl
@@ -43,7 +43,7 @@ LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm -L$(SPLINTERPA
 # declaration of dependencies
 #
 
-all: $(CTARGETS) #$(SPLTARGETS) #$(CXXTARGETS)
+all: $(CTARGETS) #$(SPLTARGETS) $(CXXTARGETS)
 
 # dependencies between programs and .o files
 

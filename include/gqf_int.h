@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 #define MAX_KEY_SIZE 8  // Size of uint64_t
-#define MAX_VAL_SIZE 8  // Size of uint64_t 
+#define MAX_VAL_SIZE 8  // Size of uint64_t
 
 // Add the BITMASK macro definition here
 #define MAX_VALUE(nbits) ((1ULL << (nbits)) - 1)
@@ -19,8 +19,8 @@ extern "C" {
 
 #define MAGIC_NUMBER 1018874902021329732
 
-/* Can be 
-   0 (choose size at run-time), 
+/* Can be
+   0 (choose size at run-time),
    8, 16, 32, or 64 (for optimized versions),
    or other integer <= 56 (for compile-time-optimized bit-shifting-based versions)
 */
@@ -35,7 +35,7 @@ extern "C" {
 	typedef struct __attribute__ ((__packed__)) qfblock {
 		/* Code works with uint16_t, uint32_t, etc, but uint8_t seems just as fast as
 		 * anything else */
-		uint8_t offset; 
+		uint8_t offset;
 		uint64_t occupieds[QF_METADATA_WORDS_PER_BLOCK];
 		uint64_t runends[QF_METADATA_WORDS_PER_BLOCK];
 		uint64_t extensions[QF_METADATA_WORDS_PER_BLOCK];
@@ -94,6 +94,8 @@ extern "C" {
 		uint32_t reserved;
 		uint64_t total_size_in_bytes;
 		uint32_t seed;
+		uint32_t seed_b;
+		uint64_t frontier;
 		uint64_t nslots;
 		uint64_t xnslots;
 		uint64_t key_bits;

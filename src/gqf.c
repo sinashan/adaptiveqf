@@ -1285,7 +1285,7 @@ static inline int insert(QF *qf, uint64_t hash, uint64_t count, uint64_t *ret_in
 
 			*ret_hash = hash & BITMASK(qf->metadata->quotient_bits + qf->metadata->bits_per_slot);
 			*ret_hash_len = qf->metadata->quotient_bits + qf->metadata->bits_per_slot;
-			if (count > 1){ 
+			if (count > 1){
 				int insert_and_extend_ret = insert_and_extend(qf, insert_index, hash, count - 1, hash, ret_hash, ret_hash, QF_KEY_IS_HASH | QF_NO_LOCK); // ret_hash and ret_hash_len are placeholders
 				if (insert_and_extend_ret<=0){
 					return insert_and_extend_ret;
@@ -1784,6 +1784,8 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 	qf->metadata->hash_mode = hash;
 	qf->metadata->total_size_in_bytes = size;
 	qf->metadata->seed = seed;
+	qf->metadata->seed_b = seed+1; // TODO: make it more random? but the hash function does that.
+	qf->metadata->frontier = NULL;
 	qf->metadata->nslots = num_slots;
 	qf->metadata->xnslots = xnslots;
 	qf->metadata->key_bits = key_bits;
