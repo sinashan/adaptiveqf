@@ -548,7 +548,7 @@ static inline uint64_t get_slot(const QF *qf, uint64_t index)
 	assert(index < qf->metadata->xnslots);
 	/* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
 	 * to generate buggy code.  :/  */
-	uint64_t *p = (uint64_t *)&get_block(qf, index / QF_SLOTS_PER_BLOCK)->slots[(index % QF_SLOTS_PER_BLOCK) * (qf->metadata->bits_per_slot / 8)];
+	uint64_t *p = (uint64_t *)&get_block(qf, index / QF_SLOTS_PER_BLOCK)->slots[(index % QF_SLOTS_PER_BLOCK) * qf->metadata->bits_per_slot / 8];
 	return (uint64_t)(((*p) >> (((index % QF_SLOTS_PER_BLOCK) *
 															 qf->metadata->bits_per_slot) % 8)) &
 										BITMASK(qf->metadata->bits_per_slot));
@@ -559,7 +559,7 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value)
 	assert(index < qf->metadata->xnslots);
 	/* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
 	 * to generate buggy code.  :/  */
-	uint64_t *p = &get_block(qf, index / QF_SLOTS_PER_BLOCK)->slots[(index % QF_SLOTS_PER_BLOCK) * (qf->metadata->bits_per_slot / 8)];
+	uint64_t *p = &get_block(qf, index / QF_SLOTS_PER_BLOCK)->slots[(index % QF_SLOTS_PER_BLOCK) * qf->metadata->bits_per_slot / 8];
 	uint64_t t = *p;
 	uint64_t mask = BITMASK(qf->metadata->bits_per_slot);
 	uint64_t v = value;
