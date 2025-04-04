@@ -500,6 +500,134 @@ test_results_t run_micro_test(size_t qbits, size_t rbits, uint64_t *insert_set, 
 	return results;
 }
 
+test_results_t run_correctness_test(size_t qbits, size_t rbits, uint64_t *insert_set, size_t insert_set_len, uint64_t *query_set /* unused */, size_t query_set_len /* unused */, int verbose) {
+    test_results_t results;
+    init_test_results(&results);
+
+    size_t num_slots = 1ull << qbits;
+    // size_t minirun_id_bitmask = (1ull << (qbits + rbits)) - 1; // Not needed for this corrected test logic
+
+    QF qf;
+    if (!qf_malloc(&qf, num_slots, qbits + rbits, 0, QF_HASH_INVERTIBLE, 0)) {
+        fprintf(stderr, "ERROR: Failed to allocate QF\n");
+        results.exit_code = -1;
+        return results;
+    }
+
+    double target_load = 0.9f;
+    size_t max_inserts_based_on_load = num_slots * target_load;
+    // Determine the actual number of items to attempt inserting
+    size_t num_inserts_to_attempt = insert_set_len < max_inserts_based_on_load ? insert_set_len : max_inserts_based_on_load;
+    size_t actual_num_inserted = 0; // Track successful insertions
+
+    qf_insert_result insert_result; // Not really used here, but needed by function signature
+    size_t i;
+
+    if (verbose) printf("Performing insertions (target fill %.2f%%, max %zu items)...\n", target_load * 100.0, num_inserts_to_attempt);
+    clock_t start_clock = clock(), end_clock;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    uint64_t start_time = tv.tv_sec * 1000000 + tv.tv_usec, end_time;
+
+    for (i = 0; i < num_inserts_to_attempt; i++) {
+        // Insert the original value from insert_set[i]
+        // QF_KEY_IS_HASH means we are treating insert_set[i] itself as the hash value
+        if (qf_insert_using_ll_table(&qf, insert_set[i], 1, &insert_result, QF_NO_LOCK | QF_KEY_IS_HASH) >= 0) {
+            actual_num_inserted++; // Count successful insert
+        } else {
+            if (verbose) fprintf(stderr, "\nInsertion failed (filter likely full) at index %zu, stopping insertion. (%zu/%zu slots occupied)\n", i, qf.metadata->noccupied_slots, qf.metadata->nslots);
+            break; // Stop inserting if filter reports full or error
+        }
+    }
+    // 'i' now holds the number of items we *attempted* to insert before stopping (could be < num_inserts_to_attempt if filter filled up)
+    size_t attempted_inserts = i;
+
+    gettimeofday(&tv, NULL);
+    end_time = tv.tv_sec * 1000000 + tv.tv_usec;
+    end_clock = clock();
+
+    if (verbose) {
+        printf("\nAttempted insertions:  %zu\n", attempted_inserts);
+        printf("Successful insertions: %zu (Actual fill: %.2f%%)\n", actual_num_inserted, (double)qf.metadata->noccupied_slots / num_slots * 100.0);
+        printf("Time for inserts:      %f s\n", (double)(end_time - start_time) / 1000000);
+        if (end_time > start_time) {
+             printf("Insert throughput:     %f ops/sec\n", (double)actual_num_inserted * 1000000 / (end_time - start_time));
+             results.insert_throughput = (double)actual_num_inserted * 1000000 / (end_time - start_time);
+        } else {
+             printf("Insert throughput:     N/A (time too short)\n");
+             results.insert_throughput = 0;
+        }
+        printf("CPU time for inserts:  %f s\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
+    }
+
+
+    // ---- Query Phase ----
+    // Query for the items that were *successfully* inserted to check for false negatives.
+
+    uint64_t hash_query_result = 0; // Variable to store hash details from query if needed
+    int minirun_rank = 0;        // Variable to store rank from query if needed
+    uint64_t tp_count = 0;       // True positives (inserted keys that were found)
+    uint64_t fn_count = 0;       // False negatives (inserted keys that were NOT found - ERROR!)
+
+    if (verbose) printf("\nPerforming queries for the %zu inserted keys...\n", actual_num_inserted);
+    start_clock = clock();
+    gettimeofday(&tv, NULL);
+    start_time = tv.tv_sec * 1000000 + tv.tv_usec;
+
+    // Loop through the items we *attempted* to insert.
+    // We will query using the *original* value from insert_set[i]
+    for (i = 0; i < attempted_inserts; i++) {
+        // *** FIX: Query using the original key, don't modify insert_set[i] ***
+        if ((minirun_rank = qf_query_using_ll_table(&qf, insert_set[i], &hash_query_result, QF_KEY_IS_HASH)) >= 0) {
+            // *** FIX: This is a True Positive ***
+            tp_count++;
+            // Optional: you could verify hash_query_result here if needed, but the main check is just >= 0
+        } else {
+            // *** This is a False Negative - should NOT happen for a QF! ***
+            fn_count++;
+             if (fn_count <= 20 && verbose) { // Print first few FN errors
+                 fprintf(stderr, "!! ERROR: False Negative found for inserted key at index %zu (value: %" PRIu64 ")\n", i, insert_set[i]);
+             }
+        }
+    }
+    gettimeofday(&tv, NULL);
+    end_time = tv.tv_sec * 1000000 + tv.tv_usec;
+    end_clock = clock();
+
+    if (verbose) {
+        printf("\nTime for queries:     %f s\n", (double)(end_time - start_time) / 1000000);
+         // Throughput based on number of queries performed (attempted_inserts)
+        if (end_time > start_time) {
+             printf("Query throughput:     %f ops/sec\n", (double)attempted_inserts * 1000000 / (end_time - start_time));
+             results.query_throughput = (double)attempted_inserts * 1000000 / (end_time - start_time);
+        } else {
+             printf("Query throughput:     N/A (time too short)\n");
+             results.query_throughput = 0;
+        }
+
+        printf("CPU time for queries: %f s\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
+
+        printf("Queries performed:    %zu\n", attempted_inserts);
+        printf("True positives found: %" PRIu64 " (%.2f%% of queried)\n", tp_count, 100.0 * tp_count / attempted_inserts);
+        printf("False negatives found:%" PRIu64 " (%.2f%% of queried)\n", fn_count, 100.0 * fn_count / attempted_inserts);
+
+        // *** Report test outcome based on False Negatives ***
+        if (fn_count > 0) {
+            printf("\n*** TEST FAILED: Found %" PRIu64 " false negatives! Quotient Filters should have zero false negatives. ***\n", fn_count);
+            results.exit_code = 1; // Indicate failure
+        } else {
+            printf("\n*** TEST PASSED: All %zu inserted keys were correctly found (zero false negatives). ***\n", actual_num_inserted);
+            // results.exit_code remains 0
+        }
+        // False positive rate requires querying keys *not* in the filter, so it's not measured here.
+         results.false_positive_rate = -1.0; // Indicate N/A
+    }
+
+
+    qf_free(&qf);
+    return results;
+}
+
 test_results_t run_split_throughput_test(size_t qbits, size_t rbits, uint64_t *insert_set, size_t insert_set_len, uint64_t *query_set, size_t query_set_len, int verbose, char *inserts_outfile, char *queries_outfile) {
 	test_results_t results;
 	init_test_results(&results);
