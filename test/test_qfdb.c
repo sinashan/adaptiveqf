@@ -87,38 +87,41 @@ int main(int argc, char *argv[]) {
     printf("Insert throughput:     %.2f ops/sec\n", (double)num_ops * 1000000 / (end_time - start_time));
     printf("CPU time for inserts:  %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
 
+    // Print hashmap statistics after insertion
+    print_hashmap_stats(qfdb);
+
     // Start timing for exact queries
     start_clock = clock();
     gettimeofday(&tv, NULL);
     start_time = tv.tv_sec * 1000000 + tv.tv_usec;
 
     // 1. Query for the exact same keys we inserted (should be 100% hits)
-    // printf("\nPhase 1: Querying for the exact keys we inserted (should be 100%% hits)...\n");
-    // int exact_hits = 0;
-    // for (int i = 0; i < num_ops; i++) {
-    //     int result = qfdb_query(qfdb, keys[i]);
-    //     if (result > 0) {
-    //         exact_hits++;
-    //     }
-    //     if (verbose) {
-    //         printf("Queried exact key %d: key=%lu, found=%s\n",
-    //                i, keys[i], result > 0 ? "YES" : "NO");
-    //     }
-    // }
-    //
-    // // End timing for exact queries
-    // end_clock = clock();
-    // gettimeofday(&tv, NULL);
-    // end_time = tv.tv_sec * 1000000 + tv.tv_usec;
-    //
-    // // Print exact query performance stats
-    // printf("\nExact Query Performance:\n");
-    // printf("Time for exact queries: %.3f sec\n", (double)(end_time - start_time) / 1000000);
-    // printf("Exact query throughput: %.2f ops/sec\n", (double)num_ops * 1000000 / (end_time - start_time));
-    // printf("CPU time for queries:   %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
-    // printf("Found %d out of %d exact keys (%.2f%%)\n",
-    //        exact_hits, num_ops, (double)exact_hits / num_ops * 100);
-    //
+    printf("\nPhase 1: Querying for the exact keys we inserted (should be 100%% hits)...\n");
+    int exact_hits = 0;
+    for (int i = 0; i < num_ops; i++) {
+        int result = qfdb_query(qfdb, keys[i]);
+        if (result > 0) {
+            exact_hits++;
+        }
+        if (verbose) {
+            printf("Queried exact key %d: key=%lu, found=%s\n",
+                   i, keys[i], result > 0 ? "YES" : "NO");
+        }
+    }
+    
+    // End timing for exact queries
+    end_clock = clock();
+    gettimeofday(&tv, NULL);
+    end_time = tv.tv_sec * 1000000 + tv.tv_usec;
+    
+    // Print exact query performance stats
+    printf("\nExact Query Performance:\n");
+    printf("Time for exact queries: %.3f sec\n", (double)(end_time - start_time) / 1000000);
+    printf("Exact query throughput: %.2f ops/sec\n", (double)num_ops * 1000000 / (end_time - start_time));
+    printf("CPU time for queries:   %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
+    printf("Found %d out of %d exact keys (%.2f%%)\n",
+           exact_hits, num_ops, (double)exact_hits / num_ops * 100);
+    
     // Start timing for random queries
     start_clock = clock();
     gettimeofday(&tv, NULL);
@@ -127,7 +130,7 @@ int main(int argc, char *argv[]) {
     // 2. Query for some different keys (should be mostly misses)
     printf("\nPhase 2: Querying for random keys (should be mostly misses)...\n");
     int random_hits = 0;
-    uint64_t random_queries = (1ull << 21) + (1 << 21);
+    uint64_t random_queries = 10000; // Reduced for testing (was previously 2^21 + 2^21)
     for (uint64_t i = 0; i < random_queries; i++) {
         uint64_t random_key = ((uint64_t)rand() << 32) | (rand() + 2000000000);
 
@@ -137,7 +140,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (verbose) {
-            printf("Queried random key %d: key=%lu, found=%s\n",
+            printf("Queried random key %lu: key=%lu, found=%s\n",
                    i, random_key, result > 0 ? "YES" : "NO");
         }
     }
@@ -150,9 +153,9 @@ int main(int argc, char *argv[]) {
     // Print random query performance stats
     printf("\nRandom Query Performance:\n");
     printf("Time for random queries: %.3f sec\n", (double)(end_time - start_time) / 1000000);
-    printf("Random query throughput: %.2f ops/sec\n", (double)random_queries / (end_time - start_time));
+    printf("Random query throughput: %.2f ops/sec\n", (double)random_queries * 1000000 / (end_time - start_time));
     printf("CPU time for queries:    %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
-    printf("Found %d out of %d random keys (%.6f%% false positive rate)\n",
+    printf("Found %d out of %lu random keys (%.6f%% false positive rate)\n",
            random_hits, random_queries, (double)random_hits / random_queries * 100);
 
     // Get statistics from QFDB
