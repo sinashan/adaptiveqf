@@ -16,6 +16,12 @@ typedef struct {
     uint64_t verified_queries;    // Number of queries that required verification
     uint64_t adaptations_performed; // Total adaptation performed --> FALSE POSITIVES
     uint64_t space_errors; // Total times QF_NO_SPACE reported
+
+    pthread_mutex_t rehash_mutex; // protect rehash initiation and completion
+    QF* qf_new_pending; // pointer to new QF being built
+    uint32_t rehash_seed;
+    volatile bool rehash_copy_complete; // flag to signal when background thread is done with copy. 
+
 } QFDB;
 
 // Initialize the combined QF+SplinterDB structure
@@ -41,7 +47,11 @@ void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_quer
                     uint64_t *fp_rehashes, uint64_t *adaptations_performed,
                     uint64_t *space_errors, double *false_positive_rate);
 
-// Rehash items in a high false positive bucket
-int qfdb_rehash_bucket(QFDB *qfdb, uint64_t bucket_idx);
+
+void qfdb_set_rehash_threshold(QFDB *qfdb, uint64_t threshold);
+uint64_t qfdb_get_adaptive_slots(QFDB *qfdb);
+bool qfdb_is_rehashing(QFDB *qfdb);
+int qf_query_only(QFDB *qfdb, uint64_t key);
+void qfdb_finalize_rehash_if_complete(QFDB *qfdb);
 
 #endif // QF_SPLINTERDB_H

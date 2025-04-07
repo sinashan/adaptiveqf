@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "gqf.h"
 #include "partitioned_counter.h"
@@ -80,6 +81,10 @@ extern "C" {
 		pc_t pc_nelts;
 		pc_t pc_ndistinct_elts;
 		pc_t pc_noccupied_slots;
+		pc_t pc_nadaptive_slots; // counter for adaptive slots
+		uint64_t nadaptive_slots;
+		uint64_t adaptive_slot_threshold; // threshold to trigger rehashing
+		volatile bool rehashing; // flag: true if background rehash is active
 		uint64_t num_locks;
 		volatile int metadata_lock;
 		volatile int *locks;

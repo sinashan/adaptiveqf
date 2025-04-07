@@ -67,7 +67,7 @@ int qf_splinter_insert(QF *qf, splinterdb *db, uint64_t key, int count) {
 	qf_insert_result result;
 	int ret = qf_insert_using_ll_table(qf, key, count, &result, QF_NO_LOCK | QF_KEY_IS_HASH);
 	if (ret < 0) {
-		return 0;
+		return ret;
 	}
 	else {
 		//uint64_t id_hashed = MurmurHash64A(&result.minirun_id, sizeof(result.minirun_id), 26571997);
@@ -77,7 +77,7 @@ int qf_splinter_insert(QF *qf, splinterdb *db, uint64_t key, int count) {
 		if (!db_insert(db, &result.minirun_id, sizeof(result.minirun_id), &key, sizeof(key), result.minirun_existed, 0)) return result.minirun_existed + 1;
 
 		//if (!db_insert(db, &result.minirun_id, sizeof(result.minirun_id), &key, sizeof(key), result.minirun_existed, 0)) return result.minirun_existed + 1;
-		return 0;
+		return ret;
 	}
 }
 

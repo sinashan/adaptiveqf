@@ -1633,6 +1633,7 @@ int insert_and_extend(QF *qf, uint64_t index, uint64_t key, uint64_t count, uint
 			METADATA_WORD(qf, runends, index + 1 + ext_len + i) |= 1ULL << ((index + 1 + ext_len + i) % QF_SLOTS_PER_BLOCK);
 			//modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
 			qf->metadata->noccupied_slots++;
+			pc_add(&qf->runtimedata->pc_nadaptive_slots, 1);
 			new_count >>= qf->metadata->bits_per_slot;
 		}
 		//modify_metadata(&qf->runtimedata->pc_nelts, count);
@@ -1813,6 +1814,7 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 	pc_init(&qf->runtimedata->pc_nelts, (int64_t*)&qf->metadata->nelts, 8, 100);
 	pc_init(&qf->runtimedata->pc_ndistinct_elts, (int64_t*)&qf->metadata->ndistinct_elts, 8, 100);
 	pc_init(&qf->runtimedata->pc_noccupied_slots, (int64_t*)&qf->metadata->noccupied_slots, 8, 100);
+	pc_init(&qf->runtimedata->pc_nadaptive_slots, (int64_t*)&qf->runtimedata->nadaptive_slots, 8, 100); // Initialize counter
 	/* initialize container resize */
 	qf->runtimedata->auto_resize = 0;
 	qf->runtimedata->container_resize = qf_resize_malloc;
@@ -1820,6 +1822,11 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 	qf->runtimedata->metadata_lock = 0;
 	qf->runtimedata->locks = (volatile int *)calloc(qf->runtimedata->num_locks,
 																					sizeof(volatile int));
+
+	// rehashing fields defaults
+	qf->runtimedata->adaptive_slot_threshold = (uint64_t)(qf->metadata->nslots * 0.15); // threshold = 15% of nslots
+	qf->runtimedata->rehashing = false;
+														
 	if (qf->runtimedata->locks == NULL) {
 		perror("Couldn't allocate memory for runtime locks.");
 		exit(EXIT_FAILURE);
@@ -2261,6 +2268,8 @@ static inline int adapt(QF *qf, uint64_t index, uint64_t hash_bucket_index, uint
 
 		METADATA_WORD(qf, extensions, index + slots_used) |= 1ULL << ((index + slots_used) % 64);
 		//modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
+		// increment, added extension slot
+		pc_add(&qf->runtimedata->pc_nadaptive_slots, 1);
 		qf->metadata->noccupied_slots++;
 		slots_used++;
 		ext_bits += qf->metadata->bits_per_slot;

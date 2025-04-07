@@ -18,8 +18,8 @@
 #define Mega (1024UL * Kilo)
 #define Giga (1024UL * Mega)
 
-#define MAX_KEY_SIZE 16
-#define MAX_VAL_SIZE 16
+#define MAX_KEY_SIZE sizeof(uint64_t)
+#define MAX_VAL_SIZE sizeof(uint64_t)
 
 int merge_tuples(const data_config *cfg, slice key, message old_message, merge_accumulator *new_message);
 int merge_tuples_final(const data_config *cfg, slice key, merge_accumulator *oldest_message);
