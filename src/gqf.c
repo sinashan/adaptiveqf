@@ -1785,7 +1785,7 @@ uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits
 	qf->metadata->total_size_in_bytes = size;
 	qf->metadata->seed = seed;
 	qf->metadata->seed_b = seed+1; // TODO: make it more random? but the hash function does that.
-	qf->metadata->frontier = NULL;
+	qf->metadata->frontier = 0;
 	qf->metadata->nslots = num_slots;
 	qf->metadata->xnslots = xnslots;
 	qf->metadata->key_bits = key_bits;

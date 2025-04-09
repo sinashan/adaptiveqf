@@ -9,10 +9,29 @@
 #include "gqf_int.h"
 
 #define DEBUG_MODE 0
+#define BROOM_FILTER_REHASH_CNT 20
+#define MAX_MINIRUN_KEY(result_array, length, max_key_out)      \
+    do {                                                        \
+        if ((length) > 0) {                                     \
+            (max_key_out) = (result_array)[0]->original_key;             \
+            for (int _i = 1; _i < (length); _i++) {             \
+                if ((result_array)[_i]->original_key > (max_key_out)) {  \
+                    (max_key_out) = (result_array)[_i]->original_key;    \
+                }                                               \
+            }                                                   \
+        }                                                       \
+    } while (0)
+#define MAX(a, b) ({            \
+    __typeof__(a) _a = (a);     \
+    __typeof__(b) _b = (b);     \
+    _a > _b ? _a : _b;          \
+})
 
 #define DEBUG_PRINT(fmt, ...) \
 do { if (DEBUG_MODE) fprintf(stderr, "DEBUG: %s:%d:%s(): " fmt, __FILE__, \
                              __LINE__, __func__, ##__VA_ARGS__); } while (0)
+
+int broom_cnt = 0;
 
 // Define key comparison and related functions
 static int
@@ -78,11 +97,11 @@ static inline uint64_t qfdb_hash(QFDB *qfdb, const void *key, size_t key_size) {
   quotient_filter_metadata *m = qfdb->qf->metadata;
 
   // Check if we need to use alternate hash function for frontier
-  if (m->frontier != NULL && *(uint64_t*)key >= (uint64_t)m->frontier) {
-    return MurmurHash64A(key, key_size, qfdb->qf->metadata->seed_b);
+  if (m->frontier != 0 && *(uint64_t*)key <= (uint64_t)m->frontier) {
+    return MurmurHash64A(key, key_size, m->seed_b);
   }
 
-  return MurmurHash64A(key, key_size, qfdb->qf->metadata->seed);
+  return MurmurHash64A(key, key_size, m->seed);
 }
 
 // Initialize the combined QF+SplinterDB structure
@@ -208,6 +227,8 @@ int qfdb_insert(QFDB *qfdb, uint64_t key, uint64_t count) {
   if (!qfdb || !qfdb->qf) {
     return -1; // Invalid parameters
   }
+
+  qfdb->max_key = MAX(key, qfdb->max_key);
 
   // Create a copy of the key for hashing
   uint64_t key_copy = key;
@@ -347,10 +368,84 @@ int _qfdb_query(QFDB *qfdb, uint64_t key, minirun_entry* original_entry) {
 
 }
 
+void find_x_smallest_entries_greater_than_z(
+    minirun_entry *map, int x, uint64_t z,
+    minirun_entry **result, int *result_len
+) {
+    int count = 0;
+    minirun_entry **used = malloc(sizeof(minirun_entry *) * x);
+
+    while (count < x) {
+        minirun_entry *min_entry = NULL;
+
+        minirun_entry *e, *tmp;
+        HASH_ITER(hh, map, e, tmp) {
+            int already_used = 0;
+            for (int j = 0; j < count; j++) {
+                if (e == used[j]) {
+                    already_used = 1;
+                    break;
+                }
+            }
+
+            if (e->original_key > z && !already_used) {
+                if (min_entry == NULL || e->original_key < min_entry->original_key) {
+                    min_entry = e;
+                }
+            }
+        }
+
+        if (min_entry == NULL) break;
+
+        used[count] = min_entry;
+        result[count] = min_entry;
+        count++;
+    }
+
+    *result_len = count;
+    free(used);
+}
+
+void broom(QFDB *qfdb) {
+
+  broom_cnt++;
+  int count = 0;
+  quotient_filter_metadata *m = qfdb->qf->metadata;
+  minirun_entry* rehash_candidates[BROOM_FILTER_REHASH_CNT];
+  // This pattern is the correct way to iterate a uthash
+  find_x_smallest_entries_greater_than_z(qfdb->hashmap, BROOM_FILTER_REHASH_CNT,
+                                      m->frontier,
+                                      rehash_candidates, &count);
+
+  // printf("\n");
+  for(int i = 0; i < count; i++) {
+    qfdb_remove(qfdb, rehash_candidates[i]->original_key);
+  }
+  // printf("\n");
+  uint64_t max_key = 0;
+  MAX_MINIRUN_KEY(rehash_candidates, count, max_key);
+
+  if (max_key >= qfdb->max_key) {
+    m->seed = m->seed_b;
+    m->seed_b++;
+    m->frontier = 0;
+  } else {
+    m->frontier = max_key;
+  }
+
+  for(int i = 0; i < count; i++) {
+    qfdb_insert(qfdb, rehash_candidates[i]->original_key, 1);
+  }
+
+}
+
 int _qfdb_adapt(QFDB *qfdb, uint64_t key, minirun_entry* original_entry, int minirun_rank) {
 
   // Attempt adaptation
   DEBUG_PRINT("Attempting adaptation\n");
+
+
+  broom(qfdb);
 
   int adapt_ret = qf_adapt_using_ll_table(qfdb->qf,
                                           original_entry->original_key, // key that should be present
@@ -464,6 +559,7 @@ void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_quer
                     uint64_t *space_errors, double *false_positive_rate) {
   if (!qfdb) return;
 
+  printf("BROOM_CNT: %d", broom_cnt);
   if (total_queries) *total_queries = qfdb->total_queries;
   if (verified_queries) *verified_queries = qfdb->verified_queries;
   if (fp_rehashes) *fp_rehashes = qfdb->fp_rehashes;
