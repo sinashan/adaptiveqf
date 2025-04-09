@@ -10,6 +10,7 @@ typedef struct {
     uint64_t minirun_id;    // Key for hash table lookup (minirun ID)
     uint64_t original_key;  // Original key that was inserted
     UT_hash_handle hh;      // Makes this structure hashable
+    void* next;
 } minirun_entry;
 
 // Add a data_cfg pointer to QFDB structure

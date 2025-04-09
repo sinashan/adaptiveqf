@@ -108,12 +108,12 @@ int main(int argc, char *argv[]) {
                    i, keys[i], result > 0 ? "YES" : "NO");
         }
     }
-    
+
     // End timing for exact queries
     end_clock = clock();
     gettimeofday(&tv, NULL);
     end_time = tv.tv_sec * 1000000 + tv.tv_usec;
-    
+
     // Print exact query performance stats
     printf("\nExact Query Performance:\n");
     printf("Time for exact queries: %.3f sec\n", (double)(end_time - start_time) / 1000000);
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
     printf("CPU time for queries:   %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
     printf("Found %d out of %d exact keys (%.2f%%)\n",
            exact_hits, num_ops, (double)exact_hits / num_ops * 100);
-    
+
     // Start timing for random queries
     start_clock = clock();
     gettimeofday(&tv, NULL);
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
     // 2. Query for some different keys (should be mostly misses)
     printf("\nPhase 2: Querying for random keys (should be mostly misses)...\n");
     int random_hits = 0;
-    uint64_t random_queries = 10000; // Reduced for testing (was previously 2^21 + 2^21)
+    uint64_t random_queries = 10000000; // Reduced for testing (was previously 2^21 + 2^21)
     for (uint64_t i = 0; i < random_queries; i++) {
         uint64_t random_key = ((uint64_t)rand() << 32) | (rand() + 2000000000);
 
