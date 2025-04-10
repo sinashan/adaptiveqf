@@ -14,63 +14,6 @@
     do { if (DEBUG_MODE) fprintf(stderr, "DEBUG: %s:%d:%s(): " fmt, __FILE__, \
                                 __LINE__, __func__, ##__VA_ARGS__); } while (0)
 
-// Define key comparison and related functions
-static int
-key_compare_func(const data_config *cfg, slice key1, slice key2)
-{
-    // Compare two keys (uint64_t values)
-    uint64_t k1, k2;
-    memcpy(&k1, key1.data, sizeof(uint64_t));
-    memcpy(&k2, key2.data, sizeof(uint64_t));
-
-    if (k1 < k2) return -1;
-    if (k1 > k2) return 1;
-    return 0;
-}
-
-static uint32_t
-key_hash_func(const void *key, size_t length, uint32_t seed)
-{
-    // Hash a key
-    uint64_t k;
-    if (length == sizeof(uint64_t)) {
-        memcpy(&k, key, sizeof(uint64_t));
-        return (uint32_t)(k ^ (k >> 32));
-    } else {
-        return 0;
-    }
-}
-
-static void
-key_to_string_func(const data_config *cfg, slice key, char *str, size_t max_len)
-{
-    uint64_t k;
-    memcpy(&k, key.data, sizeof(uint64_t));
-    snprintf(str, max_len, "%lu", k);
-}
-
-static void
-message_to_string_func(const data_config *cfg, message msg, char *str, size_t max_len)
-{
-    uint64_t val;
-    slice value_slice = message_slice(msg);
-    if (value_slice.length == sizeof(uint64_t)) {
-        memcpy(&val, value_slice.data, sizeof(uint64_t));
-        snprintf(str, max_len, "%lu", val);
-    } else {
-        snprintf(str, max_len, "<binary data: %zu bytes>", value_slice.length);
-    }
-}
-
-static int
-merge_tuples_func(const data_config *cfg,
-                  slice key,
-                  message old_msg,
-                  merge_accumulator *new_msg)
-{
-    return 0; // Simple implementation
-}
-
 // Hash function for QFDB
 static inline uint64_t qfdb_hash(QFDB *qfdb, const void *key, size_t key_size) {
     if (!qfdb || !qfdb->qf || !qfdb->qf->metadata) return 0;
@@ -86,7 +29,7 @@ static inline uint64_t qfdb_hash(QFDB *qfdb, const void *key, size_t key_size) {
 }
 
 // Initialize the combined QF+SplinterDB structure
-QFDB* qfdb_init(uint64_t qbits, uint64_t rbits, const char* db_path) {
+QFDB* qfdb_init(uint64_t qbits, uint64_t rbits) {
     // Limit qbits to reasonable size to prevent overflows
     if (qbits >= 30) {
         fprintf(stderr, "Warning: qbits=%lu is too large. Limiting to 29\n", qbits);
@@ -107,48 +50,6 @@ QFDB* qfdb_init(uint64_t qbits, uint64_t rbits, const char* db_path) {
     if (!qf_malloc(qfdb->qf, 1ULL << qbits, qbits + rbits, 0,
                   QF_HASH_INVERTIBLE, 0)) {
         fprintf(stderr, "Failed to allocate QF with qbits=%lu, rbits=%lu\n", qbits, rbits);
-        free(qfdb->qf);
-        free(qfdb);
-        return NULL;
-    }
-
-    // Create data_config
-    data_config *data_cfg = (data_config *)malloc(sizeof(data_config));
-    if (!data_cfg) {
-        qf_free(qfdb->qf);
-        free(qfdb->qf);
-        free(qfdb);
-        return NULL;
-    }
-
-    // Initialize data_config
-    memset(data_cfg, 0, sizeof(data_config));
-
-    // Set callback functions
-    data_cfg->key_compare = key_compare_func;
-    data_cfg->key_hash = key_hash_func;
-    data_cfg->key_to_string = key_to_string_func;
-    data_cfg->message_to_string = message_to_string_func;
-    data_cfg->merge_tuples = merge_tuples_func;
-
-    // Set key size
-    data_cfg->max_key_size = sizeof(uint64_t);
-
-    // Save data_config
-    qfdb->data_cfg = data_cfg;
-
-    // Initialize SplinterDB configuration
-    splinterdb_config cfg;
-    memset(&cfg, 0, sizeof(splinterdb_config));
-    cfg.filename = db_path;
-    cfg.cache_size = 1024 * 1024 * 128; // 128MB cache
-    cfg.disk_size = 1024 * 1024 * 256;  // 256MB disk size (REQUIRED)
-    cfg.data_cfg = data_cfg;
-
-    // Create SplinterDB
-    if (splinterdb_create(&cfg, &qfdb->ext_store) != 0) {
-        free(data_cfg);
-        qf_free(qfdb->qf);
         free(qfdb->qf);
         free(qfdb);
         return NULL;
@@ -179,24 +80,11 @@ void qfdb_destroy(QFDB *qfdb) {
     }
     qfdb->hashmap = NULL;
 
-    // Close and free the SplinterDB
-    if (qfdb->ext_store) {
-        splinterdb *tmp = qfdb->ext_store;
-        qfdb->ext_store = NULL;
-        splinterdb_close(&tmp);
-    }
-
     // Free the QF
     if (qfdb->qf) {
         qf_free(qfdb->qf);
         free(qfdb->qf);
         qfdb->qf = NULL;
-    }
-
-    // Free the data_config
-    if (qfdb->data_cfg) {
-        free(qfdb->data_cfg);
-        qfdb->data_cfg = NULL;
     }
 
     // Free the QFDB structure itself

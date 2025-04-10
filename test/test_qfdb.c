@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     remove(db_path);
 
     // Initialize the combined data structure
-    QFDB *qfdb = qfdb_init(qbits, rbits, db_path);
+    QFDB *qfdb = qfdb_init(qbits, rbits);
     if (!qfdb) {
         fprintf(stderr, "Failed to initialize QFDB\n");
         return 1;

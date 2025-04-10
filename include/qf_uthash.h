@@ -2,7 +2,6 @@
 #define QF_SPLINTERDB_H
 
 #include "gqf.h"
-#include "splinterdb/splinterdb.h"
 #include "uthash.h"
 
 // Entry in the hashmap to map from minirun_id to original_key
@@ -15,12 +14,10 @@ typedef struct {
 // Add a data_cfg pointer to QFDB structure
 typedef struct {
     QF *qf;                       // The Adaptive Quotient Filter
-    splinterdb *ext_store;        // External SplinterDB store
 
     // Hashmap to map minirun_id to original_key for verification
     minirun_entry *hashmap;       // NULL when empty
 
-    data_config *data_cfg;        // SplinterDB configuration
     uint64_t fp_rehashes;         // Counter for rehash operations
     uint64_t total_queries;       // Total number of queries
     uint64_t verified_queries;    // Number of queries that required verification
@@ -29,7 +26,7 @@ typedef struct {
 } QFDB;
 
 // Initialize the combined QF+SplinterDB structure
-QFDB* qfdb_init(uint64_t qbits, uint64_t rbits, const char* db_path);
+QFDB* qfdb_init(uint64_t qbits, uint64_t rbits);
 
 // Free resources used by the combined structure
 void qfdb_destroy(QFDB *qfdb);
