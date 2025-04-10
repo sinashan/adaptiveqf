@@ -5,6 +5,8 @@
 #include <sys/time.h>
 #include <time.h>
 #include <string.h>
+#define HEAP_IMPLEMENTATION
+#include "sc_min_heap.h"
 
 int main(int argc, char *argv[]) {
     if (argc < 4) {
@@ -53,19 +55,22 @@ int main(int argc, char *argv[]) {
     uint64_t start_time, end_time;
     uint64_t num_updates = 0;
 
+    // Remove generating keys out of insert timing measurement.
+    for (uint64_t i = 0; i < num_ops; ++i){
+        if (i % 2 == 0) {
+            keys[i] = 1000000 + i;
+        } else {
+            keys[i] = ((uint64_t)rand() << 32) | rand();
+        }
+    }
+
     // Start timing before insertions
     start_clock = clock();
     gettimeofday(&tv, NULL);
     start_time = tv.tv_sec * 1000000 + tv.tv_usec;
 
     printf("Inserting %ld keys...\n", num_ops);
-    for (int i = 0; i < num_ops; i++) {
-        if (i % 2 == 0) {
-            keys[i] = 1000000 + i;
-        } else {
-            keys[i] = ((uint64_t)rand() << 32) | rand();
-        }
-
+    for (uint64_t i = 0; i < num_ops; i++) {
         int ret = qfdb_insert(qfdb, keys[i], 1);
         if (ret >= 0) num_updates++;
 
@@ -86,6 +91,13 @@ int main(int argc, char *argv[]) {
     printf("Time for inserts:      %.3f sec\n", (double)(end_time - start_time) / 1000000);
     printf("Insert throughput:     %.2f ops/sec\n", (double)num_ops * 1000000 / (end_time - start_time));
     printf("CPU time for inserts:  %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
+
+    printf("Inserting elements into heap...\n");
+    for (uint64_t i = 0; i < num_ops; ++i){
+      if (!sc_heap_add(qfdb->heap, keys[i], NULL)){
+        printf("Error inserting key into heap");
+      }
+    }
 
     // Print hashmap statistics after insertion
     print_hashmap_stats(qfdb);

@@ -195,7 +195,7 @@ test_splinter_lltable_throughput:		$(OBJDIR)/test_splinter_lltable_throughput.o 
 
 test_qfdb:                           $(OBJDIR)/test_qfdb.o $(OBJDIR)/gqf.o $(OBJDIR)/gqf_file.o \
                                     $(OBJDIR)/hashutil.o $(OBJDIR)/qf_splinterdb.o $(OBJDIR)/ll_table.o \
-                                    $(OBJDIR)/splinter_util.o $(OBJDIR)/partitioned_counter.o
+                                    $(OBJDIR)/splinter_util.o $(OBJDIR)/partitioned_counter.o $(OBJDIR)/sc_min_heap.o
 
 # dependencies between .o files and .h files
 
@@ -219,11 +219,13 @@ $(OBJDIR)/hashutil.o:					$(LOC_SRC)/hashutil.c $(LOC_INCLUDE)/hashutil.h
 $(OBJDIR)/partitioned_counter.o:		$(LOC_INCLUDE)/partitioned_counter.h
 $(OBJDIR)/ll_table.o:					$(LOC_SRC)/ll_table.c $(LOC_INCLUDE)/ll_table.h
 $(OBJDIR)/splinter_util.o:				$(LOC_SRC)/splinter_util.c $(LOC_INCLUDE)/splinter_util.h# $(OBJDIR)/gqf.o $(OBJDIR)/gqf_file.o
+$(OBJDIR)/sc_min_heap.o:				$(LOC_SRC)/sc_min_heap.c $(LOC_INCLUDE)/sc_min_heap.h
 $(OBJDIR)/test_driver.o:				$(LOC_SRC)/test_driver.c $(LOC_INCLUDE)/test_driver.h# $(OBJDIR)/gqf.o $(OBJDIR)/gqf_file.o $(OBJDIR)/splinter_util.o
 $(OBJDIR)/qf_splinterdb.o:           $(LOC_SRC)/qf_splinterdb.c $(LOC_INCLUDE)/qf_splinterdb.h
 $(OBJDIR)/test_qfdb.o:               $(LOC_INCLUDE)/gqf.h $(LOC_INCLUDE)/qf_splinterdb.h \
                                      $(LOC_INCLUDE)/hashutil.h \
-                                     $(LOC_INCLUDE)/splinter_util.h
+                                     $(LOC_INCLUDE)/splinter_util.h \
+																		 $(LOC_INCLUDE)/sc_min_heap.h
 #
 # generic build rules
 #

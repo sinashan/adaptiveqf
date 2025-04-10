@@ -5,6 +5,7 @@
 #include "splinterdb/splinterdb.h"
 #include "uthash.h"
 #include <stdint.h>
+#include "sc_min_heap.h"
 
 // Entry in the hashmap to map from minirun_id to original_key
 typedef struct {
@@ -29,6 +30,7 @@ typedef struct {
     uint64_t adaptations_performed; // Total adaptations performed (false positives)
     uint64_t space_errors;        // Total times QF_NO_SPACE reported
     uint64_t max_key; // Needed for broom filter approach.
+    struct sc_heap *heap; // Hack for broom filter
 } QFDB;
 
 // Initialize the combined QF+SplinterDB structure
