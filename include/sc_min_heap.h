@@ -104,6 +104,9 @@ struct sc_heap_data *sc_heap_peek(struct sc_heap *h);
 struct sc_heap_data *sc_heap_pop(struct sc_heap *h);
 
 
+/* Allocates dest->elems and copies the src to dest, dest must be malloced already.
+ */
+void sc_heap_copy(struct sc_heap *dest, struct sc_heap *src);
 
 #ifndef SC_HEAP_MAX
 #define SC_HEAP_MAX (SIZE_MAX / sizeof(struct sc_heap_data))

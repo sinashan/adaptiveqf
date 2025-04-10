@@ -152,3 +152,12 @@ struct sc_heap_data *sc_heap_pop(struct sc_heap *h)
 
 	return &h->elems[0];
 }
+
+void sc_heap_copy(struct sc_heap *dest, struct sc_heap *src){
+
+  dest->cap = src->cap;
+  dest->size = src->size;
+  dest->elems = malloc(sizeof(struct sc_heap_data) * src->cap);
+  memcpy(dest->elems, src->elems, sizeof(struct sc_heap_data) * src->size);
+
+}

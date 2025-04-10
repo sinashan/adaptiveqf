@@ -17,10 +17,10 @@
 #define MAX_MINIRUN_KEY(result_array, length, max_key_out)      \
     do {                                                        \
         if ((length) > 0) {                                     \
-            (max_key_out) = (result_array)[0]->original_key;             \
+            (max_key_out) = (result_array)[0];             \
             for (int _i = 1; _i < (length); _i++) {             \
-                if ((result_array)[_i]->original_key > (max_key_out)) {  \
-                    (max_key_out) = (result_array)[_i]->original_key;    \
+                if ((result_array)[_i] > (max_key_out)) {  \
+                    (max_key_out) = (result_array)[_i];    \
                 }                                               \
             }                                                   \
         }                                                       \
@@ -188,6 +188,7 @@ QFDB* qfdb_init(uint64_t qbits, uint64_t rbits, const char* db_path) {
   qfdb->space_errors = 0;
 
   qfdb->heap = malloc(sizeof(struct sc_heap));
+  qfdb->heap_copy = malloc(sizeof(struct sc_heap));
   if (!sc_heap_init(qfdb->heap, HEAP_SIZE_INIT)) {
     printf("ERROR: could not initalize heap");
   }
@@ -380,20 +381,13 @@ int _qfdb_query(QFDB *qfdb, uint64_t key, minirun_entry* original_entry) {
 }
 
 void find_x_smallest_entries_greater_than_z(QFDB* qfdb, int x, uint64_t z,
-                                            minirun_entry **result, int
+                                            uint64_t *result, int
                                             *result_len) {
     int count = 0;
     while (count < x) {
         struct sc_heap_data *top = sc_heap_pop(qfdb->heap);
         if (!top) break;
-
-        uint64_t key = (uint64_t)top->key;
-
-        minirun_entry *found = NULL;
-        HASH_FIND(hh, qfdb->hashmap, &key, sizeof(uint64_t), found);
-        if (found) {
-            result[count++] = found;
-        }
+        result[count++] = top->key;
     }
 
     *result_len = count;
@@ -404,20 +398,17 @@ void find_x_smallest_entries_greater_than_z(QFDB* qfdb, int x, uint64_t z,
  * */
 void broom(QFDB *qfdb) {
 
-  broom_cnt++;
   int count = 0;
   quotient_filter_metadata *m = qfdb->qf->metadata;
-  minirun_entry* rehash_candidates[BROOM_FILTER_REHASH_CNT];
-  // This pattern is the correct way to iterate a uthash
+  uint64_t* rehash_candidates[BROOM_FILTER_REHASH_CNT];
   find_x_smallest_entries_greater_than_z(qfdb, BROOM_FILTER_REHASH_CNT,
                                       m->frontier,
                                       rehash_candidates, &count);
 
-  // printf("\n");
   for(int i = 0; i < count; i++) {
-    qfdb_remove(qfdb, rehash_candidates[i]->original_key);
+    qfdb_remove(qfdb, rehash_candidates[i]);
   }
-  // printf("\n");
+
   uint64_t max_key = 0;
   MAX_MINIRUN_KEY(rehash_candidates, count, max_key);
 
@@ -425,13 +416,16 @@ void broom(QFDB *qfdb) {
     m->seed = m->seed_b;
     m->seed_b++;
     m->frontier = 0;
+    sc_heap_copy(qfdb->heap, qfdb->heap_copy);
   } else {
     m->frontier = max_key;
   }
 
   for(int i = 0; i < count; i++) {
-    qfdb_insert(qfdb, rehash_candidates[i]->original_key, 1);
+    qfdb_insert(qfdb, rehash_candidates[i], 1);
   }
+
+  broom_cnt += count;
 
 }
 

@@ -98,6 +98,7 @@ int main(int argc, char *argv[]) {
         printf("Error inserting key into heap");
       }
     }
+    sc_heap_copy(qfdb->heap_copy, qfdb->heap);
 
     // Print hashmap statistics after insertion
     print_hashmap_stats(qfdb);

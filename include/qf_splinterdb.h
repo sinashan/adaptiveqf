@@ -31,6 +31,7 @@ typedef struct {
     uint64_t space_errors;        // Total times QF_NO_SPACE reported
     uint64_t max_key; // Needed for broom filter approach.
     struct sc_heap *heap; // Hack for broom filter
+    struct sc_heap *heap_copy; // Mega Hack for broom filter
 } QFDB;
 
 // Initialize the combined QF+SplinterDB structure
