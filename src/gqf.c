@@ -541,7 +541,7 @@ static inline uint64_t get_slot(const QF *qf, uint64_t index)
 {
 	if (index > qf->metadata->xnslots) {
 		bp();
-		//printf("filter is full\n");
+		printf("filter is full\n");
 		return QF_NO_SPACE;
 	}
 	//printf("index %lu\n", index);
@@ -983,11 +983,14 @@ static inline int insert_one_slot(QF *qf, uint64_t target_index, uint64_t insert
 	if (qf_get_num_occupied_slots(qf) == 97264) {
 		printf("%ld\n", clock() - start_time);
 	}*/
+	//printf("%lu, %lu, %lu\n", target_index, insert_index, value);
 	uint64_t empty_slot_index = find_first_empty_slot(qf, insert_index); // find the first empty slot // TODO: modify either this or find_first_empty_slot to go to the end of extension
-
+	//printf("%lu\n", empty_slot_index);
 	if (empty_slot_index >= qf->metadata->xnslots) {
-		return QF_NO_SPACE;
+		printf("xnslots: %lu\n", qf->metadata->xnslots);
 		printf("insert_one_slot hit xnslots\n");
+		return QF_NO_SPACE;
+		
 	}
 	shift_remainders(qf, insert_index, empty_slot_index); // shift all slots from insert index to the empty slot
 
@@ -1264,6 +1267,7 @@ static inline int insert(QF *qf, uint64_t hash, uint64_t count, uint64_t *ret_in
 				if (GET_NO_LOCK(runtime_lock) != QF_NO_LOCK) {
 					qf_unlock(qf, hash_bucket_index, /*small*/ true);
 				}
+				printf("error: program reached end of filter without finding \n");
 				return QF_NO_SPACE;
 			}
 
@@ -1465,6 +1469,7 @@ int qf_insert_using_ll_table(QF *qf, uint64_t key, uint64_t count, qf_insert_res
 				return QF_NO_SPACE;
 			}
 		} else {
+			fprintf(stderr, "Resizing the failed.\n");
 			return QF_NO_SPACE;
 		}
 	}
@@ -1907,16 +1912,21 @@ bool qf_malloc(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t
 		perror("Couldn't allocate memory for the CQF.");
 		exit(EXIT_FAILURE);
 	}
+	memset(buffer, 0, total_num_bytes);
+
 
 	qf->runtimedata = (qfruntime *)calloc(sizeof(qfruntime), 1);
-	//printf("allocated %lu for runtimedata\n", sizeof(qfruntime));
+	printf("allocated %lu for runtimedata\n", sizeof(qfruntime));
 	if (qf->runtimedata == NULL) {
 		perror("Couldn't allocate memory for runtime data.");
 		exit(EXIT_FAILURE);
 	}
 
+
 	uint64_t init_size = qf_init(qf, nslots, key_bits, value_bits, hash, seed,
 															 buffer, total_num_bytes);
+
+
 
 	if (init_size == total_num_bytes)
 		return true;
@@ -2063,6 +2073,7 @@ int qf_insert_ret(QF *qf, uint64_t key, uint64_t count, uint64_t *ret_index, uin
 				return QF_NO_SPACE;
 			}
 		} else {
+			fprintf(stderr, "Resizing the failed.\n");
 			return QF_NO_SPACE;
 		}
 	}
@@ -2095,8 +2106,10 @@ int qf_insert(QF *qf, uint64_t key, uint64_t value, uint64_t count, uint8_t flag
 				fprintf(stderr, "Resizing the failed.\n");
 				return QF_NO_SPACE;
 			}
-		} else
+		} else{
+			fprintf(stderr, "Resizing the failed.\n");
 			return QF_NO_SPACE;
+		}
 	}
 	if (count == 0)
 		return 0;

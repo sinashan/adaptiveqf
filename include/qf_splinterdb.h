@@ -4,10 +4,25 @@
 #include "gqf.h"
 #include "splinterdb/splinterdb.h"
 
-// Add a data_cfg pointer to QFDB structure in qf_splinterdb.h
+#include "uthash.h"
+
+#define BM_ENTRY_INITIAL_CAPACITY 4 
+
+typedef struct bm_entry {
+    uint64_t minirun_id;       
+    uint64_t *original_keys;   
+    size_t   num_keys;        
+    size_t   capacity;         
+    UT_hash_handle hh;      
+} bm_entry_t;
+
+
 typedef struct {
     QF *qf;                       // The Adaptive Quotient Filter
-    splinterdb *ext_store;        // External SplinterDB store
+    splinterdb *db;               // External SplinterDB store
+
+    bm_entry_t *bm_hashtable;   // Head pointer for uthash table (active BM)
+    pthread_mutex_t bm_mutex;   // Mutex for thread-safe access to bm_hashtable
 
     data_config *data_cfg;        // SplinterDB configuration
     uint64_t fp_rehashes;         // Counter for rehash operations
@@ -17,8 +32,11 @@ typedef struct {
     uint64_t adaptations_performed; // Total adaptation performed --> FALSE POSITIVES
     uint64_t space_errors; // Total times QF_NO_SPACE reported
 
+    char *db_path_original; // db original path
+
     pthread_mutex_t rehash_mutex; // protect rehash initiation and completion
     QF* qf_new_pending; // pointer to new QF being built
+    bm_entry_t *bm_new_hashtable_pending;
     uint32_t rehash_seed;
     volatile bool rehash_copy_complete; // flag to signal when background thread is done with copy. 
 
