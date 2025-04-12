@@ -2243,7 +2243,7 @@ static inline int adapt(QF *qf, uint64_t index, uint64_t hash_bucket_index, uint
 
 		uint64_t empty_slot_index = find_first_empty_slot(qf, index + slots_used);
 		if (empty_slot_index >= qf->metadata->xnslots) {
-			printf("adapt hit xnslots\n");
+			printf("adapt hit xnslots: %ld is the first empty slot which is big \n", empty_slot_index);
 			return QF_NO_SPACE; // maybe should do something about the now extraneous slots? allows for false negative
 		}
 

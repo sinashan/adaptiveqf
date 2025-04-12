@@ -60,6 +60,9 @@ void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_quer
 // Rehash items in a high false positive bucket
 int qfdb_rehash_bucket(QFDB *qfdb, uint64_t bucket_idx);
 
+// Returns number of occupied slots
+int qfdb_get_occ_slots(QFDB *qfdb);
+
 // Utility function to print hashmap statistics
 void print_hashmap_stats(QFDB *qfdb);
 

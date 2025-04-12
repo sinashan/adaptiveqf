@@ -12,7 +12,7 @@
 #include "sc_min_heap.h"
 
 #define DEBUG_MODE 0
-#define BROOM_FILTER_REHASH_CNT 69
+#define BROOM_FILTER_REHASH_CNT 1000
 #define HEAP_SIZE_INIT 100000
 #define MAX_MINIRUN_KEY(result_array, length, max_key_out)      \
     do {                                                        \
@@ -25,6 +25,7 @@
             }                                                   \
         }                                                       \
     } while (0)
+
 #define MAX(a, b) ({            \
     __typeof__(a) _a = (a);     \
     __typeof__(b) _b = (b);     \
@@ -234,6 +235,10 @@ void qfdb_destroy(QFDB *qfdb) {
   free(qfdb);
 }
 
+int qfdb_get_occ_slots(QFDB *qfdb) {
+  return qf_get_num_occupied_slots(qfdb-qf);
+}
+
 // Insert an item into QFDB
 int qfdb_insert(QFDB *qfdb, uint64_t key, uint64_t count) {
   if (!qfdb || !qfdb->qf) {
@@ -398,6 +403,7 @@ void find_x_smallest_entries_greater_than_z(QFDB* qfdb, int x, uint64_t z,
  * */
 void broom(QFDB *qfdb) {
 
+  uint64_t before = qf_get_num_occupied_slots(qfdb->qf);
   int count = 0;
   quotient_filter_metadata *m = qfdb->qf->metadata;
   uint64_t* rehash_candidates[BROOM_FILTER_REHASH_CNT];
@@ -425,7 +431,28 @@ void broom(QFDB *qfdb) {
     qfdb_insert(qfdb, rehash_candidates[i], 1);
   }
 
+  uint64_t diff = before - qf_get_num_occupied_slots(qfdb->qf);
+  if (diff > 0) {
+    printf("WE cleared %ld slots\n", diff);
+  }
+
   broom_cnt += count;
+
+}
+
+void process_adapt_result(QFDB *qfdb, int adapt_ret) {
+
+  if (adapt_ret > 0) {
+    qfdb->adaptations_performed++;
+    DEBUG_PRINT("Adaptation successful (return code: %d)\n", adapt_ret);
+  } else {
+    // = 0 means adaptation was not required.
+    // = -1 (QF_NO_SPACE), -2 QF_COULDNT_LOCK, -3 QF_DOESNT_EXIST
+    DEBUG_PRINT("Adaptation failed (return code: %d)\n", adapt_ret);
+    if (adapt_ret == -1) { // QF_NO_SPACE
+      qfdb->space_errors++;
+    }
+  }
 
 }
 
@@ -441,20 +468,18 @@ int _qfdb_adapt(QFDB *qfdb, uint64_t key, minirun_entry* original_entry, int min
                                           original_entry->original_key, // key that should be present
                                           key,                // key that caused false positive
                                           minirun_rank,       // rank of the item
-                                          0);                 // flags
+                                          QF_KEY_IS_HASH);                 // flags
 
-  // >0 means success
-  if (adapt_ret > 0) {
-    qfdb->adaptations_performed++;
-    DEBUG_PRINT("Adaptation successful (return code: %d)\n", adapt_ret);
-  } else {
-    // = 0 means adaptation was not required.
-    // = -1 (QF_NO_SPACE), -2 QF_COULDNT_LOCK, -3 QF_DOESNT_EXIST
-    DEBUG_PRINT("Adaptation failed (return code: %d)\n", adapt_ret);
-    if (adapt_ret == -1) { // QF_NO_SPACE
-      qfdb->space_errors++;
-    }
-  }
+  // if (adapt_ret == -1) {
+  //   broom(qfdb);
+  //   adapt_ret = qf_adapt_using_ll_table(qfdb->qf,
+  //                                         original_entry->original_key, // key that should be present
+  //                                         key,                // key that caused false positive
+  //                                         minirun_rank,       // rank of the item
+  //                                         QF_KEY_IS_HASH);
+  // }
+
+  process_adapt_result(qfdb, adapt_ret);
 
   return 0;
 }
