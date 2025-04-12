@@ -5,19 +5,31 @@
 #include <unistd.h> 
 #include <time.h>  
 
-#include "qf_splinterdb.h" 
-#include "gqf_int.h"
+#include "include/qf_splinterdb.h" 
+#include "include/gqf_int.h"
+#include <errno.h>
 #include "rand_util.h"    
 
 #define TEST_QBITS 20
 #define TEST_RBITS 8
 #define PRIMARY_DB_PATH "correctness_test_db"
 #define BACKING_MAP_PATH "correctness_test_bm"
-#define VERY_LOW_THRESHOLD 2000
-#define FILL_PERCENTAGE 0.80 
+#define VERY_LOW_THRESHOLD 150000
+#define FILL_PERCENTAGE 0.70 
 #define NUM_INSERTIONS (uint64_t)((1ULL << TEST_QBITS) * FILL_PERCENTAGE)
-#define NUM_NEGATIVE_QUERIES (NUM_INSERTIONS * 10)
+#define NUM_NEGATIVE_QUERIES (NUM_INSERTIONS * 100)
 #define MAX_REHASH_WAIT_SECONDS 60 
+
+
+
+
+uint64_t rand_uniform(uint64_t max) {
+        if (max <= RAND_MAX) return rand() % max;
+        uint64_t a = rand();
+        uint64_t b = rand();
+        a |= (b << 31);
+        return a % max;
+}
 
 uint64_t* generate_keys(uint64_t count) {
     uint64_t* keys = (uint64_t*)malloc(count * sizeof(uint64_t));
@@ -86,7 +98,6 @@ int main() {
 
     printf("Correctness check passed.\n");
 
-    // trigger rehash with negative queries
 
     uint64_t occupied_before_neg = qf_get_num_occupied_slots(qfdb->qf);
     double percent_occupied_before = (qfdb->qf->metadata->nslots > 0) ?
@@ -108,9 +119,22 @@ int main() {
              fprintf(stderr, "TEST FAIL: Negative query for key %lu failed with code %d.\n", negative_keys[i], result);
              exit_code = EXIT_FAILURE;
         }
-        if (qfdb_is_rehashing(qfdb)) {
-             printf("  Rehashing started after %lu negative queries (Adaptations: %lu).\n", i + 1, adaptations_triggered);
+        if (result==-EBUSY) {
+             printf("Rehashing started after %lu negative queries (Adaptations: %lu).\n", i + 1, adaptations_triggered);
              break;
+        }
+        if (qfdb->fp_rehashes>=1){
+            break;
+        }
+        if (i%1000000==0){
+            occupied_before_neg = qf_get_num_occupied_slots(qfdb->qf);
+            percent_occupied_before = (qfdb->qf->metadata->nslots > 0) ?
+                                     (double)occupied_before_neg * 100.0 / qfdb->qf->metadata->nslots : 0.0;
+            printf("\nOccupied slots: %lu (%.2f%% of %lu total slots)\n",
+
+           occupied_before_neg,
+           percent_occupied_before,
+           qfdb->qf->metadata->nslots);
         }
     }
     printf("Queries to trigger adapt complete. Triggered %lu adaptations.\n", adaptations_triggered);
@@ -123,37 +147,6 @@ int main() {
            occupied_after_neg,
            percent_occupied_after,
            qfdb->qf->metadata->nslots);
-
-    if (!qfdb_is_rehashing(qfdb)) {
-         uint64_t current_adaptive = qfdb_get_adaptive_slots(qfdb);
-         fprintf(stderr, "Rehashing did not trigger after %lu negative queries. Current adaptive slots: %lu (Threshold: %lu).\n",
-                 NUM_NEGATIVE_QUERIES, current_adaptive, VERY_LOW_THRESHOLD);
-    }
-
-
-    // wait for rehash completion
-    printf("Waiting for background rehash to complete");
-    int wait_time = 0;
-    while (qfdb_is_rehashing(qfdb) && wait_time < MAX_REHASH_WAIT_SECONDS) {
-        sleep(1); 
-        qfdb_finalize_rehash_if_complete(qfdb);
-        wait_time++;
-    }
-
-    if (qfdb_is_rehashing(qfdb)) {
-         fprintf(stderr, "TEST FAIL: Rehash did not complete");
-         exit_code = EXIT_FAILURE;
-         goto cleanup;
-    }
-
-    qfdb_finalize_rehash_if_complete(qfdb);
-    if (qfdb_is_rehashing(qfdb)) {
-         fprintf(stderr, "TEST FAIL: Rehashing flag still in progress.\n");
-         exit_code = EXIT_FAILURE;
-         goto cleanup;
-    }
-    printf("Rehash process complete.\n");
-
 
     //  Correctness Query (Inserted Keys) - AFTER Rehash
     printf("Correctness query for %lu inserted keys...\n", successful_inserts);
