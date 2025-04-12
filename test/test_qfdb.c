@@ -56,11 +56,11 @@ void print_rehashing_memory_usage(const QFDB *qfdb) {
     // Size of QF metadata
     size_t qf_metadata_size = sizeof(quotient_filter_metadata);
     
-    // Total rehashing memory overhead
-    size_t rehashing_overhead = bucket_stats_size + uthash_overhead_buckets;
+    // Total rehashing memory overhead (excluding uthash)
+    size_t rehashing_overhead = bucket_stats_size;
     
     // Total memory usage
-    size_t total_memory = qf_size + hashmap_size + uthash_overhead_hashmap + 
+    size_t total_memory = qf_size + 
                          qfdb_struct_size + qf_metadata_size + rehashing_overhead;
     
     printf("\nRehashing Memory Usage:\n");
