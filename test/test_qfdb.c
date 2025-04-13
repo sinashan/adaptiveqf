@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "qf_uthash.h" 
+#include "qf_uthash.h"
 #include <sys/time.h>
 #include <time.h>
 #include <string.h>
@@ -23,70 +23,70 @@ void print_usage(const char* program_name) {
 
 void print_rehashing_memory_usage(const QFDB *qfdb) {
     if (!qfdb) return;
-    
+
     // Count hashmap entries
     size_t hashmap_entries = 0;
     minirun_entry *entry, *tmp;
     HASH_ITER(hh, qfdb->hashmap, entry, tmp) {
         hashmap_entries++;
     }
-    
+
     // Count bucket stats entries
     size_t bucket_entries = 0;
     bucket_stats *bucket, *btmp;
     HASH_ITER(hh, qfdb->buckets, bucket, btmp) {
         bucket_entries++;
     }
-    
+
     // Calculate memory used by rehashing-specific structures
     size_t bucket_stats_size = bucket_entries * sizeof(bucket_stats);
     size_t hashmap_size = hashmap_entries * sizeof(minirun_entry);
-    
+
     // Estimate UTHash overhead (approximately 32 bytes per entry)
     size_t uthash_overhead_buckets = bucket_entries * 32;
     size_t uthash_overhead_hashmap = hashmap_entries * 32;
-    
+
     // Base QF size (for reference)
-    size_t qf_size = (1ULL << qfdb->qf->metadata->quotient_bits) * 
+    size_t qf_size = (1ULL << qfdb->qf->metadata->quotient_bits) *
                      ((qfdb->qf->metadata->bits_per_slot/8) + 1);
-    
+
     // QFDB base structure size
     size_t qfdb_struct_size = sizeof(QFDB);
-    
+
     // Size of QF metadata
     size_t qf_metadata_size = sizeof(quotient_filter_metadata);
-    
+
     // Total rehashing memory overhead (excluding uthash)
     size_t rehashing_overhead = bucket_stats_size;
-    
+
     // Total memory usage
-    size_t total_memory = qf_size + 
+    size_t total_memory = qf_size +
                          qfdb_struct_size + qf_metadata_size + rehashing_overhead;
-    
+
     printf("\nRehashing Memory Usage:\n");
-    printf("Bucket stats:          %7.2f KB (%lu entries, avg %.1f bytes/entry)\n", 
-           (bucket_stats_size + uthash_overhead_buckets) / 1024.0, 
+    printf("Bucket stats:          %7.2f KB (%lu entries, avg %.1f bytes/entry)\n",
+           (bucket_stats_size + uthash_overhead_buckets) / 1024.0,
            bucket_entries,
            bucket_entries > 0 ? (bucket_stats_size + uthash_overhead_buckets) / (double)bucket_entries : 0);
-    printf("Hashmap:               %7.2f MB (%lu entries, avg %.1f bytes/entry)\n", 
-           (hashmap_size + uthash_overhead_hashmap) / (1024.0 * 1024.0), 
+    printf("Hashmap:               %7.2f MB (%lu entries, avg %.1f bytes/entry)\n",
+           (hashmap_size + uthash_overhead_hashmap) / (1024.0 * 1024.0),
            hashmap_entries,
            hashmap_entries > 0 ? (hashmap_size + uthash_overhead_hashmap) / (double)hashmap_entries : 0);
     printf("QFDB structure:        %7.2f KB\n", qfdb_struct_size / 1024.0);
     printf("QF metadata:           %7.2f KB\n", qf_metadata_size / 1024.0);
     printf("--------------------------------\n");
-    printf("Total rehashing overhead: %7.2f KB (%.2f%% of QF size)\n", 
+    printf("Total rehashing overhead: %7.2f KB (%.2f%% of QF size)\n",
            rehashing_overhead / 1024.0,
            (rehashing_overhead * 100.0) / qf_size);
     printf("Total memory usage:    %7.2f MB\n", total_memory / (1024.0 * 1024.0));
-    
+
     // Memory usage by bucket group sizes
     if (bucket_entries > 0) {
         printf("\nBucket Group Size Distribution:\n");
-        
+
         // Count entries by bucket group size
         size_t groups_by_size[5] = {0}; // [<10, 10-99, 100-999, 1000-9999, ≥10000]
-        
+
         HASH_ITER(hh, qfdb->buckets, bucket, btmp) {
             if (bucket->queries < 10) groups_by_size[0]++;
             else if (bucket->queries < 100) groups_by_size[1]++;
@@ -94,16 +94,16 @@ void print_rehashing_memory_usage(const QFDB *qfdb) {
             else if (bucket->queries < 10000) groups_by_size[3]++;
             else groups_by_size[4]++;
         }
-        
-        printf("Groups with <10 queries:     %lu (%.1f%%)\n", 
+
+        printf("Groups with <10 queries:     %lu (%.1f%%)\n",
                groups_by_size[0], (groups_by_size[0] * 100.0) / bucket_entries);
-        printf("Groups with 10-99 queries:   %lu (%.1f%%)\n", 
+        printf("Groups with 10-99 queries:   %lu (%.1f%%)\n",
                groups_by_size[1], (groups_by_size[1] * 100.0) / bucket_entries);
-        printf("Groups with 100-999 queries: %lu (%.1f%%)\n", 
+        printf("Groups with 100-999 queries: %lu (%.1f%%)\n",
                groups_by_size[2], (groups_by_size[2] * 100.0) / bucket_entries);
-        printf("Groups with 1000-9999 queries: %lu (%.1f%%)\n", 
+        printf("Groups with 1000-9999 queries: %lu (%.1f%%)\n",
                groups_by_size[3], (groups_by_size[3] * 100.0) / bucket_entries);
-        printf("Groups with ≥10000 queries:  %lu (%.1f%%)\n", 
+        printf("Groups with ≥10000 queries:  %lu (%.1f%%)\n",
                groups_by_size[4], (groups_by_size[4] * 100.0) / bucket_entries);
     }
 }
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Initialized QFDB with %lu qbits and %lu rbits\n", qbits, rbits);
-    printf("Rehashing parameters: bucket_size=%lu, fp_threshold=%.4f\n", 
+    printf("Rehashing parameters: bucket_size=%lu, fp_threshold=%.4f\n",
            bucket_size, fp_threshold);
 
     uint64_t *keys = NULL;
@@ -201,6 +201,7 @@ int main(int argc, char *argv[]) {
     printf("Time for inserts:      %.3f sec\n", (double)(end_time - start_time) / 1000000);
     printf("Insert throughput:     %.2f ops/sec\n", (double)num_ops * 1000000 / (end_time - start_time));
     printf("CPU time for inserts:  %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
+    printf("Size after inserts:  %zu KB\n", qfdb_get_size_in_bytes(qfdb) / 1024);
 
     // Print hashmap statistics after insertion
     print_hashmap_stats(qfdb);
@@ -229,12 +230,12 @@ int main(int argc, char *argv[]) {
                    i, keys[i], result > 0 ? "YES" : "NO");
         }
     }
-    
+
     // End timing for exact queries
     end_clock = clock();
     gettimeofday(&tv, NULL);
     end_time = tv.tv_sec * 1000000 + tv.tv_usec;
-    
+
     // Print exact query performance stats
     printf("\nExact Query Performance:\n");
     printf("Time for exact queries: %.3f sec\n", (double)(end_time - start_time) / 1000000);
@@ -242,12 +243,12 @@ int main(int argc, char *argv[]) {
     printf("CPU time for queries:   %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
     printf("Found %d out of %lu exact keys (%.2f%%)\n",
            exact_hits, num_ops, (double)exact_hits / num_ops * 100);
-    
+
     // Generate false positives to trigger rehashing
     if (rehash_test) {
         printf("\n========== Rehashing Test Phase ==========\n");
         printf("Generating false positives to trigger rehashing...\n");
-        
+
         // Generate keys that hash to the same buckets but have different values
         uint64_t *collision_keys = (uint64_t *)malloc(num_ops * sizeof(uint64_t));
         if (!collision_keys) {
@@ -258,12 +259,12 @@ int main(int argc, char *argv[]) {
                 // Create a key with the same low bits but different high bits
                 collision_keys[i] = keys[i] ^ (1ULL << 32);
             }
-            
+
             // Query with these keys to trigger false positives and rehashing
             start_clock = clock();
             gettimeofday(&tv, NULL);
             start_time = tv.tv_sec * 1000000 + tv.tv_usec;
-            
+
             int fp_hits = 0;
             for (int i = 0; i < num_ops; i++) {
                 int result = qfdb_query(qfdb, collision_keys[i]);
@@ -275,31 +276,31 @@ int main(int argc, char *argv[]) {
                            i, collision_keys[i], result > 0 ? "YES" : "NO");
                 }
             }
-            
+
             end_clock = clock();
             gettimeofday(&tv, NULL);
             end_time = tv.tv_sec * 1000000 + tv.tv_usec;
-            
-            printf("False positive queries: %d out of %lu (%.4f%%)\n", 
+
+            printf("False positive queries: %d out of %lu (%.4f%%)\n",
                    fp_hits, num_ops, (double)fp_hits / num_ops * 100);
             printf("Time for FP queries: %.3f sec\n", (double)(end_time - start_time) / 1000000);
-            
+
             free(collision_keys);
         }
-        
+
         // Print bucket statistics to see which buckets were rehashed
         printf("\nBucket Statistics After False Positive Queries:\n");
         print_bucket_stats(qfdb);
-        
+
         // Test explicit rehashing of a bucket group
         printf("\n========== Explicit Bucket Rehashing Test ==========\n");
-        
+
         // Find a bucket group with high FP rate
         bucket_stats *worst_bucket = NULL;
         bucket_stats *current, *tmp;
         double worst_fp_rate = 0;
         uint64_t worst_bucket_idx = 0;
-        
+
         HASH_ITER(hh, qfdb->buckets, current, tmp) {
             if (current->queries > 50 && current->fp_rate > worst_fp_rate) {
                 worst_fp_rate = current->fp_rate;
@@ -307,24 +308,24 @@ int main(int argc, char *argv[]) {
                 worst_bucket = current;
             }
         }
-        
+
         if (worst_bucket) {
-            printf("Rehashing bucket group %lu with FP rate %.4f\n", 
+            printf("Rehashing bucket group %lu with FP rate %.4f\n",
                    worst_bucket_idx, worst_fp_rate);
-            
+
             start_clock = clock();
             gettimeofday(&tv, NULL);
             start_time = tv.tv_sec * 1000000 + tv.tv_usec;
-            
+
             int items_rehashed = qfdb_rehash_bucket_group(qfdb, worst_bucket_idx);
-            
+
             end_clock = clock();
             gettimeofday(&tv, NULL);
             end_time = tv.tv_sec * 1000000 + tv.tv_usec;
-            
-            printf("Rehashed %d items in %.6f seconds\n", 
+
+            printf("Rehashed %d items in %.6f seconds\n",
                    items_rehashed, (double)(end_time - start_time) / 1000000);
-            
+
             // Test if keys are still found after rehashing
             int found_after_rehash = 0;
             for (int i = 0; i < num_ops; i++) {
@@ -332,30 +333,30 @@ int main(int argc, char *argv[]) {
                     found_after_rehash++;
                 }
             }
-            
+
             printf("Found %d of %lu keys after bucket rehashing (%.2f%%)\n",
-                   found_after_rehash, num_ops, 
+                   found_after_rehash, num_ops,
                    (double)found_after_rehash / num_ops * 100);
         } else {
             printf("No suitable bucket group found for rehashing test\n");
         }
-        
+
         // Test global rehashing
         printf("\n========== Global Rehashing Test ==========\n");
-        
+
         start_clock = clock();
         gettimeofday(&tv, NULL);
         start_time = tv.tv_sec * 1000000 + tv.tv_usec;
-        
+
         int items_rehashed = qfdb_global_rehash(qfdb);
-        
+
         end_clock = clock();
         gettimeofday(&tv, NULL);
         end_time = tv.tv_sec * 1000000 + tv.tv_usec;
-        
-        printf("Globally rehashed %d items in %.6f seconds\n", 
+
+        printf("Globally rehashed %d items in %.6f seconds\n",
                items_rehashed, (double)(end_time - start_time) / 1000000);
-        
+
         // Test if keys are still found after global rehashing
         int found_after_rehash = 0;
         for (int i = 0; i < num_ops; i++) {
@@ -363,15 +364,15 @@ int main(int argc, char *argv[]) {
                 found_after_rehash++;
             }
         }
-        
+
         printf("Found %d of %lu keys after global rehashing (%.2f%%)\n",
-               found_after_rehash, num_ops, 
+               found_after_rehash, num_ops,
                (double)found_after_rehash / num_ops * 100);
-        
+
         printf("\nBucket Statistics After Global Rehashing:\n");
         print_bucket_stats(qfdb);
     }
-    
+
     // Standard random query test
     start_clock = clock();
     gettimeofday(&tv, NULL);
@@ -411,7 +412,7 @@ int main(int argc, char *argv[]) {
     // Get statistics from QFDB
     uint64_t total_queries, verified_queries, fp_rehashes, adaptations_performed, space_errors;
     double fp_rate;
-    qfdb_get_stats(qfdb, &total_queries, &verified_queries, &fp_rehashes, 
+    qfdb_get_stats(qfdb, &total_queries, &verified_queries, &fp_rehashes,
                   &adaptations_performed, &space_errors, &fp_rate);
 
     uint64_t rehashing_operations, rehashed_items;
@@ -428,6 +429,7 @@ int main(int argc, char *argv[]) {
     printf("Rehashing operations:   %lu\n", rehashing_operations);
     printf("Rehashed items:         %lu\n", rehashed_items);
     printf("Average FP rate:        %.6f\n", avg_fp_rate);
+    printf("Size after queries:  %zu KB\n", qfdb_get_size_in_bytes(qfdb) / 1024);
 
     // Memory usage statistics (estimate)
     size_t qf_size = (1ULL << qbits) * ((rbits/8) + 1);

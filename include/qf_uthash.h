@@ -35,10 +35,10 @@ typedef struct {
     // Rehashing parameters
     uint64_t bucket_group_size;     // Number of buckets in a group (granularity)
     double rehash_threshold;        // FP rate threshold to trigger rehashing
-    
+
     // Bucket tracking
     bucket_stats *buckets;          // Hashmap of bucket group statistics
-    
+
     // Global statistics
     uint64_t fp_rehashes;           // Counter for rehash operations
     uint64_t total_queries;         // Total number of queries
@@ -50,8 +50,8 @@ typedef struct {
 } QFDB;
 
 // Initialize the QFDB structure with configurable rehashing parameters
-QFDB* qfdb_init_extended(uint64_t qbits, uint64_t rbits, 
-                        uint64_t bucket_group_size, 
+QFDB* qfdb_init_extended(uint64_t qbits, uint64_t rbits,
+                        uint64_t bucket_group_size,
                         double rehash_threshold);
 
 // Initialize with default rehashing parameters
@@ -75,9 +75,10 @@ void qfdb_set_rehash_params(QFDB *qfdb, uint64_t bucket_group_size, double thres
 void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_queries,
                    uint64_t *fp_rehashes, uint64_t *adaptations_performed,
                    uint64_t *space_errors, double *false_positive_rate);
-void qfdb_get_rehash_stats(QFDB *qfdb, uint64_t *rehashing_operations, 
+void qfdb_get_rehash_stats(QFDB *qfdb, uint64_t *rehashing_operations,
                           uint64_t *rehashed_items, double *avg_fp_rate);
 void print_hashmap_stats(QFDB *qfdb);
 void print_bucket_stats(QFDB *qfdb);
+uint64_t qfdb_get_size_in_bytes(QFDB* qfdb);
 
 #endif // QF_UTHASH_H
