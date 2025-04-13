@@ -590,6 +590,22 @@ void qfdb_get_stats(QFDB *qfdb, uint64_t *total_queries, uint64_t *verified_quer
   }
 }
 
+
+uint64_t qfdb_get_size_in_bytes(QFDB* qfdb) {
+
+  // This size includes all the pointers, but not the data itself.
+  uint64_t base_size = sizeof(QFDB);
+  base_size += sizeof(QF);
+  base_size += sizeof(quotient_filter_runtime_data);
+  base_size += sizeof(quotient_filter_metadata);
+
+  // Dynamic size
+  base_size += sizeof(qfblock) * qfdb->qf->metadata->nblocks;
+  base_size += sizeof(uint8_t) * qfdb->qf->metadata->nslots;
+
+  return base_size;
+}
+
 // Rehash items in a high false positive bucket
 int qfdb_rehash_bucket(QFDB *qfdb, uint64_t bucket_idx) {
   if (!qfdb || !qfdb->qf) {

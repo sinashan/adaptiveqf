@@ -92,6 +92,7 @@ int main(int argc, char *argv[]) {
     printf("Insert throughput:     %.2f ops/sec\n", (double)num_ops * 1000000 / (end_time - start_time));
     printf("CPU time for inserts:  %.3f sec\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
     printf("Number of occupied slots: %d\n", qfdb_get_occ_slots(qfdb));
+    printf("Size of QFDB: %zu\n", qfdb_get_size_in_bytes(qfdb));
 
     printf("Inserting elements into heap...\n");
     for (uint64_t i = 0; i < num_ops; ++i){

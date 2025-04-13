@@ -63,6 +63,8 @@ int qfdb_rehash_bucket(QFDB *qfdb, uint64_t bucket_idx);
 // Returns number of occupied slots
 int qfdb_get_occ_slots(QFDB *qfdb);
 
+uint64_t qfdb_get_size_in_bytes(QFDB* qfdb);
+
 // Utility function to print hashmap statistics
 void print_hashmap_stats(QFDB *qfdb);
 
