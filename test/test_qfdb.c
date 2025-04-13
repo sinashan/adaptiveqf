@@ -101,6 +101,11 @@ int main(int argc, char *argv[]) {
     }
     sc_heap_copy(qfdb->heap_copy, qfdb->heap);
 
+    size_t sz = qfdb->heap->cap * sizeof(struct sc_heap_data);
+    printf("Size of heap in kbytes : %zu\n", sz/1000);
+    sz = qfdb->heap_copy->cap * sizeof(struct sc_heap_data);
+    printf("Size of heap copy in kbytes : %zu\n", sz/1000);
+
     // Print hashmap statistics after insertion
     print_hashmap_stats(qfdb);
 

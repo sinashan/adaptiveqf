@@ -236,7 +236,7 @@ void qfdb_destroy(QFDB *qfdb) {
 }
 
 int qfdb_get_occ_slots(QFDB *qfdb) {
-  return qf_get_num_occupied_slots(qfdb-qf);
+  return qf_get_num_occupied_slots(qfdb->qf);
 }
 
 // Insert an item into QFDB
@@ -403,7 +403,7 @@ void find_x_smallest_entries_greater_than_z(QFDB* qfdb, int x, uint64_t z,
  * */
 void broom(QFDB *qfdb) {
 
-  uint64_t before = qf_get_num_occupied_slots(qfdb->qf);
+  // uint64_t before = qf_get_num_occupied_slots(qfdb->qf);
   int count = 0;
   quotient_filter_metadata *m = qfdb->qf->metadata;
   uint64_t* rehash_candidates[BROOM_FILTER_REHASH_CNT];
@@ -431,10 +431,10 @@ void broom(QFDB *qfdb) {
     qfdb_insert(qfdb, rehash_candidates[i], 1);
   }
 
-  uint64_t diff = before - qf_get_num_occupied_slots(qfdb->qf);
-  if (diff > 0) {
-    printf("WE cleared %ld slots\n", diff);
-  }
+  // uint64_t diff = before - qf_get_num_occupied_slots(qfdb->qf);
+  // if (diff > 0) {
+  //   printf("WE cleared %ld slots\n", diff);
+  // }
 
   broom_cnt += count;
 
