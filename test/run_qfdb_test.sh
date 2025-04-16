@@ -16,7 +16,7 @@ mkdir -p "${LOG_DIR}"
 chmod 755 "${LOG_DIR}"
 
 # Base parameters - reduce size for faster testing
-QBITS=26
+QBITS=20
 RBITS=9
 NUM_OPS=5000000  # Reduced for faster testing
 

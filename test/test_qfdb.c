@@ -380,7 +380,7 @@ int main(int argc, char *argv[]) {
     // Query for some different keys (should be mostly misses)
     printf("\nPhase 2: Querying for random keys (should be mostly misses)...\n");
     int random_hits = 0;
-    uint64_t random_queries = 10000;
+    uint64_t random_queries = num_ops;
     for (uint64_t i = 0; i < random_queries; i++) {
         uint64_t random_key = ((uint64_t)rand() << 32) | (rand() + 2000000000);
 

@@ -39,6 +39,11 @@ typedef struct {
     double total_downtime_ms;
     uint64_t adaptive_slots_used;
     double adaptive_slot_ratio;
+    
+    // New metrics for enhanced reporting
+    uint64_t space_errors;          // Number of space errors encountered
+    double rehash_overhead_pct;     // Rehashing overhead as percentage of QF size
+    double total_memory_mb;         // Total memory usage in MB
 } test_results_t;
 
 // To track rehashing events for naive rehash
@@ -51,8 +56,7 @@ typedef struct {
 
 #define MAX_REHASH_EVENTS 100
 
-// Function to print memory usage statistics
-void print_rehashing_memory_usage(const QFDB *qfdb) {
+void print_rehashing_memory_usage(const QFDB *qfdb, double *memory_mb, double *overhead_percent) {
     if (!qfdb) return;
     
     // Count hashmap entries
@@ -87,56 +91,379 @@ void print_rehashing_memory_usage(const QFDB *qfdb) {
     // Size of QF metadata
     size_t qf_metadata_size = sizeof(quotient_filter_metadata);
     
-    // Total rehashing memory overhead (excluding uthash)
+    // Total rehashing memory overhead (EXCLUDING hashmap - only bucket stats)
     size_t rehashing_overhead = bucket_stats_size;
     
-    // Total memory usage
-    size_t total_memory = qf_size + 
-                         qfdb_struct_size + qf_metadata_size + rehashing_overhead;
+    // Total memory usage (excluding hashmap)
+    size_t total_memory = qf_size + qfdb_struct_size + qf_metadata_size + rehashing_overhead;
     
-    printf("\nRehashing Memory Usage:\n");
-    printf("Bucket stats:            %7.2f KB (%lu entries, avg %.1f bytes/entry)\n", 
-           (bucket_stats_size + uthash_overhead_buckets) / 1024.0, 
-           bucket_entries,
-           bucket_entries > 0 ? (bucket_stats_size + uthash_overhead_buckets) / (double)bucket_entries : 0);
-    printf("Hashmap:                 %7.2f MB (%lu entries, avg %.1f bytes/entry)\n", 
-           (hashmap_size + uthash_overhead_hashmap) / (1024.0 * 1024.0), 
-           hashmap_entries,
-           hashmap_entries > 0 ? (hashmap_size + uthash_overhead_hashmap) / (double)hashmap_entries : 0);
-    printf("QFDB structure:          %7.2f KB\n", qfdb_struct_size / 1024.0);
-    printf("QF metadata:             %7.2f KB\n", qf_metadata_size / 1024.0);
+    // Return values if pointers are provided
+    if (memory_mb) *memory_mb = total_memory / (1024.0 * 1024.0);
+    if (overhead_percent) *overhead_percent = (rehashing_overhead * 100.0) / qf_size;
+    
+    printf("\nMemory Usage Statistics:\n");
+    printf("Base QF size:              %7.2f MB\n", qf_size / (1024.0 * 1024.0));
+    printf("QFDB structure:            %7.2f KB\n", qfdb_struct_size / 1024.0);
+    printf("QF metadata:               %7.2f KB\n", qf_metadata_size / 1024.0);
+    printf("Bucket stats:              %7.2f KB (%lu entries)\n", 
+           bucket_stats_size / 1024.0, bucket_entries);
+    printf("Hashmap (excl. overhead):  %7.2f MB (%lu entries)\n", 
+           hashmap_size / (1024.0 * 1024.0), hashmap_entries);
     printf("--------------------------------\n");
     printf("Total rehashing overhead:  %7.2f KB (%.2f%% of QF size)\n", 
            rehashing_overhead / 1024.0,
            (rehashing_overhead * 100.0) / qf_size);
-    printf("Total memory usage:      %7.2f MB\n", total_memory / (1024.0 * 1024.0));
+    printf("Total memory usage:        %7.2f MB\n", total_memory / (1024.0 * 1024.0));
+}
+
+// Enhance the print_block_test_results function to include more metrics
+void print_block_test_results(const test_results_t *results, uint64_t qbits, uint64_t rbits,
+    uint64_t bucket_size, double fp_threshold, double adv_pct) {
+    printf("\n==================== ADVERSARIAL TEST RESULTS ====================\n");
+    printf("Configuration:\n");
+    printf("  Implementation:     block_based\n");
+    printf("  Filter size:        %llu slots (qbits=%lu, rbits=%lu)\n", 
+    1ULL << qbits, qbits, rbits);
+    printf("  Bucket size:        %lu\n", bucket_size);
+    printf("  FP threshold:       %.4f\n", fp_threshold);
+    printf("  Adversarial load:   %.1f%%\n", adv_pct);
+
+    printf("\nPerformance:\n");
+    printf("  Insert throughput:  %.2f ops/sec\n", results->insert_throughput);
+    printf("  Insert latency:     %.2f us/op\n", 1000000.0 / results->insert_throughput);
+    printf("  Query throughput:   %.2f ops/sec\n", results->query_throughput);
+    printf("  Query latency:      %.2f us/op\n", 1000000.0 / results->query_throughput);
+
+    printf("\nLatency Metrics:\n");
+    printf("  Avg query latency:  %.2f us\n", results->avg_query_latency_us);
+    printf("  Min query latency:  %.2f us\n", results->min_query_latency_us);
+    printf("  Max query latency:  %.2f us\n", results->max_query_latency_us);
+    printf("  Latency range:      %.2f us\n", results->max_query_latency_us - results->min_query_latency_us);
+
+    printf("\nFalse Positives:\n");
+    printf("  Total FPs:          %lu\n", results->false_positives);
+    printf("  Final FP rate:      %.6f (%.4f%%)\n", 
+    results->false_positive_rate, results->false_positive_rate * 100);
+    printf("  Space errors:       %lu\n", results->space_errors);
+
+    if (results->rehashing_operations > 0) {
+    printf("\nRehashing:\n");
+    printf("  Rehash operations:  %lu\n", results->rehashing_operations);
+    printf("  Rehashed items:     %lu\n", results->rehashed_items);
+    printf("  Avg items/rehash:   %.1f\n", (double)results->rehashed_items / results->rehashing_operations);
+    }
+
+    printf("\nMemory Usage:\n");
+    printf("  Base QF memory:     %.2f MB\n", results->memory_kb / 1024.0);
+    printf("  Memory per slot:    %.2f bytes\n", results->memory_kb * 1024 / (1ULL << qbits));
+    printf("  Rehashing overhead: %.2f%% of QF size\n", results->rehash_overhead_pct);
+    printf("  Total memory:       %.2f MB\n", results->total_memory_mb);
+    printf("================================================================\n");
+}
+
+// Enhance the print_naive_test_results function to include more metrics
+void print_naive_test_results(const test_results_t *results, uint64_t qbits, uint64_t rbits,
+                      double rehash_threshold) {
+    printf("\n==================== NAIVE REHASHING TEST RESULTS ====================\n");
+    printf("Configuration:\n");
+    printf("  Implementation:     naive_rehashing\n");
+    printf("  Filter size:        %llu slots (qbits=%lu, rbits=%lu)\n", 
+           1ULL << qbits, qbits, rbits);
+    printf("  Rehash threshold:   %.2f%% of slots\n", rehash_threshold * 100);
     
-    // Memory usage by bucket group sizes
-    if (bucket_entries > 0) {
-        printf("\nBucket Group Size Distribution:\n");
+    printf("\nPerformance:\n");
+    printf("  Insert throughput:  %.2f ops/sec\n", results->insert_throughput);
+    printf("  Insert latency:     %.2f us/op\n", 1000000.0 / results->insert_throughput);
+    printf("  Query throughput:   %.2f ops/sec\n", results->query_throughput);
+    printf("  Query latency:      %.2f us/op\n", 1000000.0 / results->query_throughput);
+    
+    printf("\nLatency Metrics:\n");
+    printf("  Avg query latency:  %.2f us\n", results->avg_query_latency_us);
+    printf("  Min query latency:  %.2f us\n", results->min_query_latency_us);
+    printf("  Max query latency:  %.2f us\n", results->max_query_latency_us);
+    printf("  Latency range:      %.2f us\n", results->max_query_latency_us - results->min_query_latency_us);
+    
+    printf("\nFalse Positives:\n");
+    printf("  Total FPs:          %lu\n", results->false_positives);
+    printf("  Final FP rate:      %.6f (%.4f%%)\n", 
+           results->false_positive_rate, results->false_positive_rate * 100);
+    
+    printf("\nRehashing Metrics:\n");
+    printf("  Rehash operations:  %lu\n", results->rehashing_operations);
+    printf("  Rehashed items:     %lu\n", results->rehashed_items);
+    printf("  Avg items/rehash:   %.1f\n", results->rehashing_operations > 0 ? 
+           (double)results->rehashed_items / results->rehashing_operations : 0);
+    printf("  Avg rehash time:    %.2f ms\n", results->avg_rehash_time_ms);
+    printf("  Max rehash time:    %.2f ms\n", results->max_rehash_time_ms);
+    printf("  Total downtime:     %.2f ms\n", results->total_downtime_ms);
+    printf("  Space errors:       %lu\n", results->space_errors);
+    
+    printf("\nAdaptive Slot Usage:\n");
+    printf("  Adaptive slots:     %lu\n", results->adaptive_slots_used);
+    printf("  Adaptive ratio:     %.6f (%.4f%%)\n", 
+           results->adaptive_slot_ratio, results->adaptive_slot_ratio * 100);
+    
+    printf("\nMemory Usage:\n");
+    printf("  Base QF memory:     %.2f MB\n", results->memory_kb / 1024.0);
+    printf("  Memory per slot:    %.2f bytes\n", results->memory_kb * 1024 / (1ULL << qbits));
+    printf("  Rehashing overhead: %.2f%% of QF size\n", results->rehash_overhead_pct);
+    printf("  Total memory:       %.2f MB\n", results->total_memory_mb);
+    printf("==================================================================\n");
+}
+
+int run_capacity_test(int argc, char *argv[]) {
+    if (argc < 6) {
+        printf("Usage: %s capacity <qbits> <rbits> <num_queries> <mode> [options]\n", argv[0]);
+        printf("  mode: 'block' or 'naive' implementation\n");
+        return 1;
+    }
+    
+    uint64_t qbits = atoi(argv[2]);
+    uint64_t rbits = atoi(argv[3]);
+    uint64_t num_queries = strtoull(argv[4], NULL, 10);
+    char* implementation = argv[5];
+    int verbose = 0;
+    uint64_t bucket_size = 128;
+    double fp_threshold = 0.05;
+    double rehash_threshold = 0.05;
+    uint64_t seed = time(NULL);
+    
+    // Parse optional arguments
+    for (int i = 6; i < argc; i++) {
+        if (strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
+        } else if (strcmp(argv[i], "--bucket-size") == 0 && i + 1 < argc) {
+            bucket_size = atoi(argv[i + 1]);
+            i++;
+        } else if (strcmp(argv[i], "--fp-threshold") == 0 && i + 1 < argc) {
+            fp_threshold = atof(argv[i + 1]);
+            i++;
+        } else if (strcmp(argv[i], "--rehash-threshold") == 0 && i + 1 < argc) {
+            rehash_threshold = atof(argv[i + 1]);
+            i++;
+        } else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) {
+            seed = atoi(argv[i + 1]);
+            i++;
+        }
+    }
+    
+    // Initialize random seed
+    srand(seed);
+    printf("Using random seed: %lu\n", seed);
+    printf("Using fp_threshold: %.4f\n", fp_threshold);
+    
+    // Create directory for logs
+    mkdir("logs", 0777);
+    
+    // Initialize the appropriate QFDB
+    QFDB *qfdb = NULL;
+    if (strcmp(implementation, "block") == 0) {
+        printf("Using block-based implementation with bucket size %lu\n", bucket_size);
+        qfdb = qfdb_init_extended(qbits, rbits, bucket_size, fp_threshold);
+    } else if (strcmp(implementation, "naive") == 0) {
+        printf("Using naive rehashing implementation\n");
+        qfdb = qfdb_init(qbits, rbits);
+    } else {
+        printf("Unknown implementation: %s\n", implementation);
+        return 1;
+    }
+    
+    if (!qfdb) {
+        printf("Failed to initialize QFDB\n");
+        return 1;
+    }
+    
+    // Fill the filter to near capacity (95%)
+    uint64_t target_capacity = (1ULL << qbits) * 0.95;
+    printf("Filling filter to 95%% capacity (%lu items)...\n", target_capacity);
+
+    uint64_t inserted = 0;
+    uint64_t attempts = 0;
+    uint64_t max_attempts = target_capacity * 1.5; // Allow 50% more attempts to reach target
+    uint64_t key_counter = 0;
+
+    // Continue inserting until we reach target capacity or hit max attempts
+    while (inserted < target_capacity && attempts < max_attempts) {
+        int ret = qfdb_insert(qfdb, key_counter, 1);
+        attempts++;
+        key_counter++;
         
-        // Count entries by bucket group size
-        size_t groups_by_size[5] = {0}; // [<10, 10-99, 100-999, 1000-9999, ≥10000]
+        if (ret >= 0) {
+            inserted++;
+            
+            // Show progress every 10% increments
+            if (inserted % (target_capacity/10) == 0) {
+                printf("  Inserted %lu items (%.1f%% of target)\n", 
+                       inserted, (double)inserted * 100 / target_capacity);
+            }
+        }
+    }
+
+    // Report final insertion results
+    if (inserted >= target_capacity) {
+        printf("Successfully inserted %lu items (100.0%% of target)\n", inserted);
+    } else {
+        printf("Partial fill: inserted %lu of %lu items (%.1f%% of target)\n", 
+               inserted, target_capacity, (double)inserted * 100 / target_capacity);
+        printf("Insertion stopped after %lu attempts\n", attempts);
+    }
+    
+    // Track how many rehashes each bucket has undergone
+    uint64_t num_buckets = 1ULL << qbits;
+    uint64_t num_bucket_groups = num_buckets / qfdb->bucket_group_size;
+    int *bucket_rehashes = calloc(num_bucket_groups, sizeof(int));
+    
+    // Store initial hash seed modifiers for block-based
+    if (strcmp(implementation, "block") == 0) {
+        bucket_stats *bucket, *tmp;
+        HASH_ITER(hh, qfdb->buckets, bucket, tmp) {
+            if (bucket->bucket_group_idx < num_bucket_groups) {
+                bucket_rehashes[bucket->bucket_group_idx] = bucket->hash_seed_modifier;
+            }
+        }
+    }
+    
+    // Phase 1: Generate false positives in target buckets
+    printf("\nPhase 1: Generating concentrated false positives in target buckets...\n");
+    uint64_t warmup_queries = 100000;
+    uint64_t target_buckets = 10;
+    uint64_t warmup_rehashes = 0;
+    uint64_t warmup_fp_checks = 0;
+    
+    // Record stats before warmup
+    uint64_t rehashes_before_warmup = qfdb->rehashing_operations;
+    uint64_t fp_rehashes_before_warmup = qfdb->fp_rehashes;
+    uint64_t adaptations_before_warmup = qfdb->adaptations_performed;
+    
+    // Create concentrated query pattern on a few target buckets
+    for (uint64_t i = 0; i < warmup_queries; i++) {
+        // Pick one of a few target bucket indices
+        uint64_t target_bucket = i % target_buckets;
         
-        HASH_ITER(hh, qfdb->buckets, bucket, btmp) {
-            if (bucket->queries < 10) groups_by_size[0]++;
-            else if (bucket->queries < 100) groups_by_size[1]++;
-            else if (bucket->queries < 1000) groups_by_size[2]++;
-            else if (bucket->queries < 10000) groups_by_size[3]++;
-            else groups_by_size[4]++;
+        // Create a key that hashes to this bucket but isn't in the filter
+        // This uses the same bucket targeting technique as in adversarial tests
+        uint64_t key = ((target_bucket << rbits) | (rand() % (1ULL << rbits))) + target_capacity;
+        
+        qfdb_query(qfdb, key);
+        
+        // Track rehashing
+        if (qfdb->rehashing_operations > rehashes_before_warmup + warmup_rehashes) {
+            warmup_rehashes++;
+            
+            if (verbose) {
+                printf("Warmup query %lu triggered rehash #%lu\n", i, warmup_rehashes);
+            }
         }
         
-        printf("Groups with <10 queries:     %lu (%.1f%%)\n", 
-               groups_by_size[0], (groups_by_size[0] * 100.0) / bucket_entries);
-        printf("Groups with 10-99 queries:   %lu (%.1f%%)\n", 
-               groups_by_size[1], (groups_by_size[1] * 100.0) / bucket_entries);
-        printf("Groups with 100-999 queries: %lu (%.1f%%)\n", 
-               groups_by_size[2], (groups_by_size[2] * 100.0) / bucket_entries);
-        printf("Groups with 1000-9999 queries: %lu (%.1f%%)\n", 
-               groups_by_size[3], (groups_by_size[3] * 100.0) / bucket_entries);
-        printf("Groups with ≥10000 queries:  %lu (%.1f%%)\n", 
-               groups_by_size[4], (groups_by_size[4] * 100.0) / bucket_entries);
+        if (i % (warmup_queries/10) == 0) {
+            printf("  Completed %lu warmup queries (%.1f%%), rehashes: %lu\n", 
+                   i, (double)i * 100 / warmup_queries, warmup_rehashes);
+        }
     }
+    
+    // Record stats after warmup
+    warmup_fp_checks = qfdb->fp_rehashes - fp_rehashes_before_warmup;
+    printf("\nWarmup phase complete: %lu false positive checks, %lu rehashes\n", 
+           warmup_fp_checks, warmup_rehashes);
+    
+    // Now reset statistics before the main test
+    uint64_t rehashes_before = qfdb->rehashing_operations;
+    uint64_t fp_rehashes_before = qfdb->fp_rehashes;
+    uint64_t adaptations_before = qfdb->adaptations_performed;
+    
+    // Reset bucket rehash tracking
+    if (strcmp(implementation, "block") == 0) {
+        bucket_stats *bucket, *tmp;
+        HASH_ITER(hh, qfdb->buckets, bucket, tmp) {
+            if (bucket->bucket_group_idx < num_bucket_groups) {
+                bucket_rehashes[bucket->bucket_group_idx] = bucket->hash_seed_modifier;
+            }
+        }
+    }
+    
+    // Phase 2: Now run the normal sequential query test
+    printf("\nPhase 2: Performing %lu sequential queries...\n", num_queries);
+    uint64_t rehash_triggering_queries = 0;
+    uint64_t unique_buckets_rehashed = 0;
+    
+    for (uint64_t i = 0; i < num_queries; i++) {
+        // Generate a key that's guaranteed not to be in the filter
+        uint64_t query_key = target_capacity + warmup_queries + i;
+        
+        // Query the filter
+        qfdb_query(qfdb, query_key);
+        
+        // Check if this query triggered a rehash
+        if (qfdb->rehashing_operations > rehashes_before + rehash_triggering_queries) {
+            rehash_triggering_queries++;
+            
+            if (verbose) {
+                printf("Query %lu triggered rehash #%lu\n", i, rehash_triggering_queries);
+            }
+        }
+        
+        // Show progress
+        if (i % (num_queries/10) == 0) {
+            printf("  Completed %lu queries (%.1f%%), rehashes: %lu (%.2f%%)\n", 
+                   i, (double)i * 100 / num_queries,
+                   rehash_triggering_queries, 
+                   (double)rehash_triggering_queries * 100 / (i+1));
+        }
+    }
+    
+    // For block-based, count how many unique buckets were rehashed
+    if (strcmp(implementation, "block") == 0) {
+        bucket_stats *bucket, *tmp;
+        HASH_ITER(hh, qfdb->buckets, bucket, tmp) {
+            if (bucket->bucket_group_idx < num_bucket_groups && 
+                bucket->hash_seed_modifier != bucket_rehashes[bucket->bucket_group_idx]) {
+                unique_buckets_rehashed++;
+            }
+        }
+    }
+    
+    // Calculate final metrics
+    double rehash_ratio = (double)rehash_triggering_queries / num_queries * 100.0;
+    uint64_t rehashes_after = qfdb->rehashing_operations;
+    uint64_t fp_rehashes_after = qfdb->fp_rehashes;
+    uint64_t adaptations_after = qfdb->adaptations_performed;
+    
+    // Print results
+    printf("\n==== CAPACITY TEST RESULTS ====\n");
+    printf("Filter configuration:   %lu qbits, %lu rbits\n", qbits, rbits);
+    printf("Implementation:         %s\n", implementation);
+    printf("FP threshold:           %.4f\n", fp_threshold);
+    printf("Bucket size:            %lu\n", bucket_size);
+    printf("Filter fill level:      %.1f%% (%lu of %lu slots)\n", 
+           (double)inserted * 100 / (1ULL << qbits), inserted, (1ULL << qbits));
+    printf("Queries performed:      %lu\n", num_queries);
+    printf("False positive checks:  %lu\n", fp_rehashes_after - fp_rehashes_before);
+    printf("Adaptations performed:  %lu (%.2f%%)\n", 
+           adaptations_after - adaptations_before, 
+           (double)(adaptations_after - adaptations_before) * 100 / num_queries);
+    printf("Rehash operations:      %lu (%.2f%%)\n", 
+           rehash_triggering_queries, rehash_ratio);
+    
+    if (strcmp(implementation, "block") == 0) {
+        printf("Unique buckets rehashed: %lu of %lu (%.2f%%)\n", 
+               unique_buckets_rehashed, num_bucket_groups,
+               (double)unique_buckets_rehashed * 100 / num_bucket_groups);
+    }
+    
+    printf("\nFalse positive stats:\n");
+    print_bucket_stats(qfdb);
+    
+    // Show memory usage
+    printf("\nMemory usage details:\n");
+    double total_memory_mb = 0.0;
+    double rehash_overhead_pct = 0.0;
+    print_rehashing_memory_usage(qfdb, &total_memory_mb, &rehash_overhead_pct);
+    
+    // Clean up
+    free(bucket_rehashes);
+    qfdb_destroy(qfdb);
+    
+    return 0;
 }
 
 // Compare function for qsort
@@ -196,11 +523,13 @@ void write_block_results_to_csv(const char *filename, const test_results_t *resu
 
     // Write header if file is new
     if (!file_exists) {
-    fprintf(csv_file, "timestamp,qbits,rbits,bucket_size,fp_threshold,adv_pct,"
-    "insert_throughput,query_throughput,false_positives,fp_rate,"
-    "rehashing_operations,rehashed_items,avg_latency_us,"
-    "min_latency_us,max_latency_us,memory_kb\n");
+        fprintf(csv_file, "timestamp,qbits,rbits,bucket_size,fp_threshold,adv_pct,"
+                "insert_throughput,query_throughput,false_positives,fp_rate,"
+                "rehashing_operations,rehashed_items,avg_latency_us,"
+                "min_latency_us,max_latency_us,memory_kb,space_errors,"
+                "rehash_overhead_pct,total_memory_mb\n");
     }
+    
 
     // Get current timestamp
     time_t now = time(NULL);
@@ -208,13 +537,15 @@ void write_block_results_to_csv(const char *filename, const test_results_t *resu
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
 
     // Write results row
-    fprintf(csv_file, "%s,%lu,%lu,%lu,%.4f,%.1f,%.2f,%.2f,%lu,%.6f,%lu,%lu,%.2f,%.2f,%.2f,%.2f\n",
-    timestamp, qbits, rbits, bucket_size, fp_threshold, adv_pct,
-    results->insert_throughput, results->query_throughput,
-    results->false_positives, results->false_positive_rate,
-    results->rehashing_operations, results->rehashed_items,
-    results->avg_query_latency_us, results->min_query_latency_us,
-    results->max_query_latency_us, results->memory_kb);
+    fprintf(csv_file, "%s,%lu,%lu,%lu,%.4f,%.1f,%.2f,%.2f,%lu,%.6f,%lu,%lu,%.2f,%.2f,%.2f,%.2f,%lu,%.2f,%.2f\n",
+        timestamp, qbits, rbits, bucket_size, fp_threshold, adv_pct,
+        results->insert_throughput, results->query_throughput,
+        results->false_positives, results->false_positive_rate,
+        results->rehashing_operations, results->rehashed_items,
+        results->avg_query_latency_us, results->min_query_latency_us,
+        results->max_query_latency_us, results->memory_kb,
+        results->space_errors, results->rehash_overhead_pct,
+        results->total_memory_mb);
 
     fclose(csv_file);
     printf("\nResults saved to %s\n", timestamped_filename);
@@ -276,85 +607,6 @@ void write_naive_results_to_csv(const char *filename, const test_results_t *resu
     printf("\nResults saved to %s\n", timestamped_filename);
 }
 
-// Print final test results - Block-based version
-void print_block_test_results(const test_results_t *results, uint64_t qbits, uint64_t rbits,
-                      uint64_t bucket_size, double fp_threshold, double adv_pct) {
-    printf("\n==================== ADVERSARIAL TEST RESULTS ====================\n");
-    printf("Configuration:\n");
-    printf("  Implementation:     block_based\n");
-    printf("  Filter size:        %llu slots (qbits=%lu, rbits=%lu)\n", 
-           1ULL << qbits, qbits, rbits);
-    printf("  Bucket size:        %lu\n", bucket_size);
-    printf("  FP threshold:       %.4f\n", fp_threshold);
-    printf("  Adversarial load:   %.1f%%\n", adv_pct);
-    
-    printf("\nPerformance:\n");
-    printf("  Insert throughput:  %.2f ops/sec\n", results->insert_throughput);
-    printf("  Query throughput:   %.2f ops/sec\n", results->query_throughput);
-    
-    printf("\nLatency Metrics:\n");
-    printf("  Avg query latency:  %.2f us\n", results->avg_query_latency_us);
-    printf("  Min query latency:  %.2f us\n", results->min_query_latency_us);
-    printf("  Max query latency:  %.2f us\n", results->max_query_latency_us);
-    
-    printf("\nFalse Positives:\n");
-    printf("  Total FPs:          %lu\n", results->false_positives);
-    printf("  Final FP rate:      %.6f (%.4f%%)\n", 
-           results->false_positive_rate, results->false_positive_rate * 100);
-    
-    if (results->rehashing_operations > 0) {
-        printf("\nRehashing:\n");
-        printf("  Rehash operations:  %lu\n", results->rehashing_operations);
-        printf("  Rehashed items:     %lu\n", results->rehashed_items);
-    }
-    
-    printf("\nMemory Usage:\n");
-    printf("  Base QF memory:     %.2f KB\n", results->memory_kb);
-    printf("  Memory per slot:    %.2f bytes\n", results->memory_kb * 1024 / (1ULL << qbits));
-    printf("================================================================\n");
-}
-
-// Print final test results - Naive rehash version
-void print_naive_test_results(const test_results_t *results, uint64_t qbits, uint64_t rbits,
-                      double rehash_threshold) {
-    printf("\n==================== NAIVE REHASHING TEST RESULTS ====================\n");
-    printf("Configuration:\n");
-    printf("  Implementation:     naive_rehashing\n");
-    printf("  Filter size:        %llu slots (qbits=%lu, rbits=%lu)\n", 
-           1ULL << qbits, qbits, rbits);
-    printf("  Rehash threshold:   %.2f%% of slots\n", rehash_threshold * 100);
-    
-    printf("\nPerformance:\n");
-    printf("  Insert throughput:  %.2f ops/sec\n", results->insert_throughput);
-    printf("  Query throughput:   %.2f ops/sec\n", results->query_throughput);
-    
-    printf("\nLatency Metrics:\n");
-    printf("  Avg query latency:  %.2f us\n", results->avg_query_latency_us);
-    printf("  Min query latency:  %.2f us\n", results->min_query_latency_us);
-    printf("  Max query latency:  %.2f us\n", results->max_query_latency_us);
-    
-    printf("\nFalse Positives:\n");
-    printf("  Total FPs:          %lu\n", results->false_positives);
-    printf("  Final FP rate:      %.6f (%.4f%%)\n", 
-           results->false_positive_rate, results->false_positive_rate * 100);
-    
-    printf("\nRehashing Metrics:\n");
-    printf("  Rehash operations:  %lu\n", results->rehashing_operations);
-    printf("  Rehashed items:     %lu\n", results->rehashed_items);
-    printf("  Avg rehash time:    %.2f ms\n", results->avg_rehash_time_ms);
-    printf("  Max rehash time:    %.2f ms\n", results->max_rehash_time_ms);
-    printf("  Total downtime:     %.2f ms\n", results->total_downtime_ms);
-    
-    printf("\nAdaptive Slot Usage:\n");
-    printf("  Adaptive slots:     %lu\n", results->adaptive_slots_used);
-    printf("  Adaptive ratio:     %.6f (%.4f%%)\n", 
-           results->adaptive_slot_ratio, results->adaptive_slot_ratio * 100);
-    
-    printf("\nMemory Usage:\n");
-    printf("  Base QF memory:     %.2f KB\n", results->memory_kb);
-    printf("  Memory per slot:    %.2f bytes\n", results->memory_kb * 1024 / (1ULL << qbits));
-    printf("==================================================================\n");
-}
 
 // Estimate the current adaptive slot usage
 uint64_t get_adaptive_slot_usage(const QFDB *qfdb) {
@@ -432,6 +684,7 @@ void print_usage() {
     printf("\nAvailable modes:\n");
     printf("  block    Run block-based adversarial test (targeted attacks on specific buckets)\n");
     printf("  naive    Run naive rehashing test (global rehashing with downtime)\n");
+    printf("  capacity Run capacity test (fill filter then measure query rehash rate)\n");
     printf("\nMode-specific arguments:\n");
     printf("For block mode:\n");
     printf("  test_qfdb_adversarial block <qbits> <rbits> <num_queries> <attack_pct> [options]\n");
@@ -451,10 +704,17 @@ void print_usage() {
     printf("    rbits: number of remainder bits per slot\n");
     printf("    num_ops: number of operations to perform\n");
     printf("    rehash_threshold: ratio of adaptive slots to trigger rehashing (0.0-1.0)\n");
+    printf("\nFor capacity mode:\n");
+    printf("  test_qfdb_adversarial capacity <qbits> <rbits> <num_queries> <mode> [options]\n");
+    printf("    qbits: log2 of number of slots in filter\n");
+    printf("    rbits: number of remainder bits per slot\n");
+    printf("    num_queries: number of queries to perform against full filter\n");
+    printf("    mode: implementation to test ('block' or 'naive')\n");
     printf("  Options:\n");
-    printf("    --verbose                 Print detailed operation information\n");
-    printf("    --output <filename>       Output CSV file (default: logs/naive_rehash_results.csv)\n");
-    printf("    --seed <value>            Random seed value\n");
+    printf("    --verbose                  Show detailed output\n");
+    printf("    --bucket-size <size>       Set bucket group size for block mode (default: 128)\n");
+    printf("    --fp-threshold <rate>      Set FP threshold for block mode (default: 0.05)\n");
+    printf("    --rehash-threshold <rate>  Set rehash threshold for naive mode (default: 0.05)\n");
 }
 
 // Run the block-based adversarial test
@@ -586,6 +846,7 @@ int run_block_based_test(int argc, char *argv[]) {
     // Calculate insertion performance metrics
     double insert_time = (double)(end_time - start_time) / 1000000;
     results.insert_throughput = num_inserts / insert_time;
+    results.space_errors = qfdb->space_errors;
     
     printf("\nInsertion Performance:\n");
     printf("  Successful inserts:   %lu of %lu\n", num_inserts, num_inserts);
@@ -817,9 +1078,11 @@ int run_block_based_test(int argc, char *argv[]) {
     printf("\nFilter Statistics After Adversarial Queries:\n");
     print_bucket_stats(qfdb);
     
-    if (verbose) {
-        print_rehashing_memory_usage(qfdb);
-    }
+    double total_memory_mb = 0.0;
+    double rehash_overhead_pct = 0.0;
+    print_rehashing_memory_usage(qfdb, &total_memory_mb, &rehash_overhead_pct);
+    results.total_memory_mb = total_memory_mb;
+    results.rehash_overhead_pct = rehash_overhead_pct;
     
     // Print summary results
     print_block_test_results(&results, qbits, rbits, bucket_size, fp_threshold, (double)attack_pct);
@@ -1068,6 +1331,7 @@ int run_naive_rehash_test(int argc, char *argv[]) {
     results.total_downtime_ms = total_rehash_time;
     results.adaptive_slots_used = final_adaptive_slots;
     results.adaptive_slot_ratio = final_adaptive_ratio;
+    results.space_errors = qfdb->space_errors;
     
     // Print overall performance
     printf("\nTest completed in %.3f seconds (CPU: %.3f seconds)\n", 
@@ -1090,6 +1354,8 @@ int run_naive_rehash_test(int argc, char *argv[]) {
                    rehash_events[i].duration_ms);
         }
     }
+
+    print_rehashing_memory_usage(qfdb, &results.total_memory_mb, &results.rehash_overhead_pct);
     
     print_naive_test_results(&results, qbits, rbits, rehash_threshold);
     
@@ -1114,6 +1380,8 @@ int main(int argc, char *argv[]) {
         return run_block_based_test(argc, argv);
     } else if (strcmp(mode, "naive") == 0) {
         return run_naive_rehash_test(argc, argv);
+    } else if (strcmp(mode, "capacity") == 0) {
+        return run_capacity_test(argc, argv); // New capacity test mode
     } else {
         printf("Unknown test mode: %s\n", mode);
         print_usage();
