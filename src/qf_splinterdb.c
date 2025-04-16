@@ -12,7 +12,14 @@
 #include "sc_min_heap.h"
 
 #define DEBUG_MODE 0
+#define BROOM_FILTER_REHASH_CNT 5000
+
+/* Other values tested:
+#define BROOM_FILTER_REHASH_CNT 50
+#define BROOM_FILTER_REHASH_CNT 100
 #define BROOM_FILTER_REHASH_CNT 1000
+ * */
+
 #define HEAP_SIZE_INIT 100000
 #define MAX_MINIRUN_KEY(result_array, length, max_key_out)      \
     do {                                                        \
@@ -403,15 +410,16 @@ void find_x_smallest_entries_greater_than_z(QFDB* qfdb, int x, uint64_t z,
  * */
 void broom(QFDB *qfdb) {
 
-  // uint64_t before = qf_get_num_occupied_slots(qfdb->qf);
+  uint64_t before = qf_get_num_occupied_slots(qfdb->qf);
   int count = 0;
   quotient_filter_metadata *m = qfdb->qf->metadata;
-  uint64_t* rehash_candidates[BROOM_FILTER_REHASH_CNT];
+  uint64_t* rehash_candidates[BROOM_FILTER_REHASH_CNT] = {0};
   find_x_smallest_entries_greater_than_z(qfdb, BROOM_FILTER_REHASH_CNT,
                                       m->frontier,
                                       rehash_candidates, &count);
 
-  for(int i = 0; i < count; i++) {
+  // remove candidates
+  for(uint64_t i = 0; i < count; i++) {
     qfdb_remove(qfdb, rehash_candidates[i]);
   }
 
@@ -427,10 +435,14 @@ void broom(QFDB *qfdb) {
     m->frontier = max_key;
   }
 
+  // When we update the hashseed and frontier qfdb_hash automatically uses the
+  // right hashfunction. we can just call insert on these elements and they
+  // will be hashed with the necessary key.
   for(int i = 0; i < count; i++) {
     qfdb_insert(qfdb, rehash_candidates[i], 1);
   }
 
+  // Code used during testing :
   // uint64_t diff = before - qf_get_num_occupied_slots(qfdb->qf);
   // if (diff > 0) {
   //   printf("WE cleared %ld slots\n", diff);
