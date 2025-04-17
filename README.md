@@ -3,6 +3,9 @@ Adaptive Quotient Filter (AQF)
 ```
 ```
 
+# Rehashing project:
+Please see  `RehashingReadme.md` for details on how to run each approach.
+
 Overview
 --------
  The AQF supports approximate membership testing and counting the occurrences of
@@ -33,9 +36,9 @@ See src/test_splinter_throughput.c for an example using SplinterDB as reverse ma
 
 Build
 -------
-This library depends on libssl. 
+This library depends on libssl.
 
-The code uses two new instructions to implement select on machine words introduced 
+The code uses two new instructions to implement select on machine words introduced
 in intel's Haswell line of CPUs. However, there is also an alternate implementation
 of select on machine words to work on CPUs older than Haswell.
 
