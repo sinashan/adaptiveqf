@@ -83,6 +83,7 @@ int main(int argc, char *argv[]) {
     end_clock = clock();
     gettimeofday(&tv, NULL);
     end_time = tv.tv_sec * 1000000 + tv.tv_usec;
+    uint64_t inital_slots_occ = qfdb_get_occ_slots(qfdb);
 
     // Print performance stats
     printf("\nInsertion Performance:\n");
@@ -182,6 +183,7 @@ int main(int argc, char *argv[]) {
     uint64_t total_queries, verified_queries, fp_rehashes, adaptations_performed, space_errors;
     double fp_rate;
     qfdb_get_stats(qfdb, &total_queries, &verified_queries, &fp_rehashes, &adaptations_performed, &space_errors, &fp_rate);
+    uint64_t slots_increase = qfdb_get_occ_slots(qfdb) - inital_slots_occ;
 
     printf("\nQFDB Internal Statistics:\n");
     printf("Total queries:          %lu\n", total_queries);
@@ -190,6 +192,7 @@ int main(int argc, char *argv[]) {
     printf("Adaptations performed: %lu\n", adaptations_performed);
     printf("Space errors (QF_NO_SPACE): %lu\n", space_errors);
     printf("False positive rate:     %.6f\n", fp_rate);
+    printf("Number of occupied slots increased: %ld\n", slots_increase);
 
     // Memory usage statistics (estimate)
     size_t qf_size = (1ULL << qbits) * ((rbits/8) + 1);
