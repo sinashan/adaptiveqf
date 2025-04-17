@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "hashutil.h"
 
-#include "qf_splinterdb.h"
+#include "qf_uthash.h"
 #include "gqf_int.h"
 
 #define HEAP_IMPLEMENTATION
